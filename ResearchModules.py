@@ -10,6 +10,10 @@ from tkinter import filedialog
 import numpy as np
 import pandas as pd
 import math
+import matplotlib
+import matplotlib.pyplot as plt
+from pandas.plotting import register_matplotlib_converters
+
 
 
 
@@ -111,28 +115,53 @@ def plotTimeseries(ax, time_data, y_data, y_label = '', x_label = 'Date',
     -------
     None.
     '''
-    error_text = ('Error: y_data is in the wrong format. Passed '
-                  + str(type(y_data))
-                  + ', not list of numerical values or pandas.DataFrame.')
-    # If y_data is a list of numbers, plot them
-    if type(y_data) in [list, pd.core.series.Series]:
-        if type(y_data[0]) in [int, float, np.float64, np.float32, np.integer]:
+    register_matplotlib_converters()
+    
+    def findType(var):
+        # Variables
+        error_text_pre = 'Error: y_data is in the wrong format. Passed '
+        error_text_sfx = ', not list of numerical values or pandas.DataFrame.'
+        num_type_list = [int, float, np.float64, np.float32, np.integer,
+                         pd._libs.tslibs.timestamps.Timestamp]
+        
+        # Function
+        var_type = type(var)
+
+        if var_type == list:
+            if type(var[0]) in num_type_list:
+                var_type = 'list'
+            elif type(var[0]) == list:
+                if type(var[0][0]) in num_type_list:
+                    var_type = 'list of lists'
+                else: print(error_text_pre + 'list of lists of ' +
+                            str(type(var[0][0])) + error_text_sfx)
+        elif isinstance(var, pd.DataFrame):
+            var_type = 'DataFrame'
+        else: print(error_text_pre + var_type + error_text_sfx)
+        
+        return var_type
+    
+    # Determine whether data is in a supported type format
+    type_time_data = findType(time_data)
+    type_y_data = findType(y_data)
+    type_legend = findType(legend)
+    
+    # Plot the data based on the type of data passed
+    if type_time_data == 'list':
+        if type_y_data == 'list':
             ax.plot(time_data, y_data, lw = line_width)
-    # If y_data is a list of numerical lists, plot each list as a line
-        elif type(y_data[0]) in [list, pd.core.series.Series] and (
-                type(y_data[0][0]) in
-                [int, float, np.float64, np.float32, np.integer]):
-            for y_list in y_data:
-                ax.plot(time_data, y_list, lw = line_width)
-    elif isinstance(y_data, pd.DataFrame):
-        n = y_data.shape[1]
-        # If multiple y are passed but only one x, make copies of x
-        if type(time_data) == list:
-            time_data = time_data * n
-        # Loop through and plot each timeseries
-        for i in range(n):
-            ax.plot(time_data[:,i], y_data.iloc[:,i], lw = line_width)
-    else: print(error_text)
+        elif type_y_data == 'list of lists':
+            for y_set in y_data:
+                ax.plot(time_data, y_set, lw = line_width)
+    elif type_time_data == 'list of lists':
+        if type_y_data == 'list of lists' and len(y_data) == len(time_data):
+            for i in range(len(time_data)):
+                ax.plot(time_data[i], y_data[i], lw = line_width)
+        else: print('Error: time_data and y_data lists are different lengths')
+    else: print('Error: either time_data or y_data are in an unsupported ' +
+                'format for the function plotTimeseries')
+    
+
     # Add labels 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)

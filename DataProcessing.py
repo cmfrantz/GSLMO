@@ -66,22 +66,85 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 ####################
 # IMPORTS
 ####################
-import datetime
 import ResearchModules
+
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
 
 ####################
 # VARIABLES
 ####################
 datasets = {
     'Site A'    : {
-        'var_sets'  : ['HOBO_pendant', 'HOBO_top', 'field_obs']
+        'water_density' : 1.07
         },
     'Site B'    : {
-        'var_sets'  : ['HOBO_pendant', 'HOBO_side', 'HOBO_top', 'field_obs']
+        'water_density' : 1.09
         }
     }
 
-plotlist = ['Depth', 'Temperature', 'Light']
+plotlist = {
+    'depth'         : {
+        'y_axis'        : 'Water depth (m)',
+        'range'         : 'Auto',
+        
+        1   : {
+            'dataset'   : 'Site A',
+            'filetype'  : 'HOBO',
+            'column'    : 'calc_water_depth_m',
+            'title'     : 'Site A (calculated)'
+            },
+        2   : {
+            'dataset'   : 'Site B',
+            'filetype'  : 'HOBO',
+            'column'    : 'calc_water_depth_m',
+            'title'     : 'Site B (calculated)'
+            },
+        },
+    
+    'temperature'   : {
+        'y_axis'        : 'Temperature (\degC)',
+        'range'         : (-5,35),
+        
+        1   : {
+            'dataset'   : 'Site A',
+            'filetype'  : 'HOBO',
+            'column'    : 'ws_air_temp_C',
+            'title'     : 'Antelope Island weater station air temp'
+            },
+        2   : {
+            'dataset'   : 'Site A',
+            'filetype'  : 'HOBO',
+            'column'    : 'pndt_water_temp_C',
+            'title'     : 'Site A water temp - Pendant'
+            },
+        3   : {
+            'dataset'   : 'Site B',
+            'filetype'  : 'HOBO',
+            'column'    : 'pndt_water_temp_C',
+            'title'     : 'Site B water temp - Pendant'
+            }
+        },
+    
+    'light'         : {
+        'y_axis'        : 'Irradiance (lumen/ft2)',
+        'range'         : (0, 7000),
+        
+        1   : {
+            'dataset'   : 'Site A',
+            'filetype'  : 'HOBO',
+            'column'    : 'bttn_top_light_lumen_ft2',
+            'title'     : 'Site A shuttle top'
+            },
+        2   : {
+            'dataset'   : 'Site B',
+            'filetype'  : 'HOBO',
+            'column'    : 'bttn_top_light_lumen_ft2',
+            'title'     : 'Site B shuttle top'
+            }
+        }
+    }
 
 # Types of input files and available variables
 filetypes = {
@@ -110,22 +173,37 @@ filetypes = {
             'bttn_side_light_lumen_ft2' : 
                 'Irradiance (HOBO button side, lumen/ft2)',
             },
-        'other'         : {
+        'salinity'      : {
             'field_salinity_pct'        : 
                 'Water salinity (%)',
+            },
+        'density'       : {
             'field_density_spgr'        : 
                 'Water density (sp. gr.)',
+            },
+        'depth'         : {
             'field_water_depth_m'       : 
                 'Water depth (field; m)',
+            'calc_water_depth_m'        :
+                'Water depth (calculated; m)'
             }
         }
     }
-
+        
+plt_ht = 5
+plt_w = 10
 
 ####################
 # FUNCTIONS
 ####################
 
+def calc_depth(hobo_dataset, water_density):
+    '''Calculate water depth from pressure data and assumed density'''
+    gravity_factor = 9.80665
+    depth = ((hobo_dataset['pndt_water_pressure_kPa']
+              - hobo_dataset['ws_air_pressure_kPa'])
+             * water_density / gravity_factor)
+    return depth
 
 
 #%%
@@ -133,19 +211,78 @@ filetypes = {
 # MAIN FUNCTION
 ####################
 if __name__ == '__main__':
-    # Load files
+    
+    
+    '''
+    PROCESSING SEQUENCE:
+        1. Load in logger data
+        2. For pendants, run weather station combiner script
+        3. Quality control: remove start and end where logger is out of water based on "jumps"
+        4. Match button data to combined pendant data by matching closest time
+        5. Add combined data to existing dataset
+        6. Grab Saltair elevation data from last point with 'A' to present
+            https://waterdata.usgs.gov/ut/nwis/dv/?site_no=10010000&agency_cd=USGS&amp;referred_module=sw
+            https://waterdata.usgs.gov/ut/nwis/dv?cb_62614=on&format=rdb&site_no=10010000&referred_module=sw&period=&begin_date=2019-11-07&end_date=2020-07-14
+        7. Re-build plots
+        8. Enter field data
+        9. Enter core data
+    '''
+    
+    
+    # Load HOBO files
+    directory = os.getcwd()
     for dataset in datasets:
         # Get file and data
         filename, directory, data = ResearchModules.fileGet(
-            'Select ' + dataset + ' combined HOBO file', tabletype = 'HOBO')
+            'Select ' + dataset + ' combined HOBO file', tabletype = 'HOBO',
+            directory = directory)
         # Drop na rows (rows with no values)
         data = data.loc[data.index.dropna()]
         # Convert datetime strings to datetime objects
-        data['datetime'] = [datetime.strptime(dtime, '%m/%d/%Y %H:%M')
-                            for dtime in data.index]
+        data['datetime'] = pd.to_datetime(data.index)
+        
+        # Do depth calculations
+        water_density = datasets[dataset]['water_density']
+        data['calc_water_depth_m'] = calc_depth(data, water_density)
+        
         # Save
-        datasets[dataset]['HOBO data'] = data
+        datasets[dataset]['HOBO'] = data
 
     # Build plots
-    for plot in plotlist:
+    fig, axs = plt.subplots(len(plotlist), 1, sharex = True,
+                            figsize = (plt_w, plt_ht * len(plotlist)))
+    for i, plot in enumerate(plotlist):
+        lines = [m for m in plotlist[plot] if type(m) == int]
+        measlist = [plotlist[plot][line]['title'] for line in lines]
+        time_data = []
+        y_data = []
+        # Gather the data
+        for line in lines:
+            # Add dataset (time values and y) to DataFrame
+            line_info = plotlist[plot][line]
+            ds = datasets[line_info['dataset']][line_info['filetype']]
+            time_data.append(list(ds['datetime']))
+            y_data.append(list(
+                pd.to_numeric(ds[line_info['column']], errors='coerce')))
+            
+        # Plot the data
+        ResearchModules.plotTimeseries(
+            axs[i], time_data, y_data, plotlist[plot]['y_axis'],
+            legend = measlist)
+        y_range = plotlist[plot]['range']
+        if type(y_range) == tuple and len(y_range) == 2:
+            axs[i].set_ylim(y_range)
+    
+    # Save the plots
+    fig.savefig(directory + '\\GSL_plots.svg', transparent = True)
+            
+    # Add plots to html file
+    
+    
         
+    # Load field notes
+    # Get file and data
+    filename, directory, data = ResearchModules.fileGet(
+        'Select field notes file', tabletype = 'field')
+
+       
