@@ -9,6 +9,7 @@ from tkinter import *
 from tkinter import filedialog
 import numpy as np
 import pandas as pd
+import math
 
 
 
@@ -23,7 +24,7 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
         Text to put in the user input window.
     tabletype: str
         Type of table to input.
-        Options are 'Generic' (default)
+        Options are 'Generic' (default), 'HOBO', 'field', and 'PHREEQC'
     directory : str, optional
         The start directory to search in. The default is os.getcwd().
     file_type : str, optional
@@ -50,6 +51,12 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
         header_row = 1
         index_col = 1
         file_type = 'csv'
+    if tabletype == 'field':
+        header_row = 1
+        index_col = 0
+    if tabletype == 'PHREEQC':
+        header_row = 0
+        index_col = 0
     
     # Define filetypes
     if file_type == 'csv':
@@ -133,4 +140,120 @@ def plotTimeseries(ax, time_data, y_data, y_label = '', x_label = 'Date',
     # Add legend
     if legend:
         ax.legend(legend)
+
+
+
+def round1SF(list):
+    '''Round a list of numerical values to 1 significant figure'''
+    for i in np.arange(len(list)):
+        list[i] = round(list[i], -int(np.floor(np.log10(abs(list[i])))))
+    return list
+
+
+def makeLogspace(**kwargs):
+    '''
+    Creates a list of values evenly spaced in log 10 space
+
+    Parameters
+    ----------
+    **kwargs : Input arguments
+        Define three of possible four variables: start, end, res, &/or steps:
+            start   = start value for list
+                        (default = 1e-10)
+            end     = end value for list
+                        (default = 1)
+            res     = minimum number of values between each log10 step
+                        (default = 3)
+            steps   = number of steps between start & end
+                        (default = 10)
+
+    Returns
+    -------
+    logspace: list of numerical values
+
+
+    '''
+    print(kwargs)
+    # Defaults
+    def_steps = 10
+    def_res = 1
+    def_min = 0
     
+    arglist = [x for x in kwargs]
+      
+
+    if 'start' in arglist:
+        minval = np.log10(kwargs['start'])
+        print('start is in arglist. minval = ' + str(minval))
+        
+        if 'end' in arglist:
+            maxval = np.log10(kwargs['end'])
+            diff = maxval-minval
+            
+            if 'res' in arglist:
+                resolution = kwargs['res']
+                n = math.ceil(diff/resolution+1)
+                
+            elif 'steps' in arglist:
+                n = kwargs['steps']
+                
+            else:
+                n = def_steps
+                
+        elif 'res' in arglist:
+            if 'steps' in arglist:
+                maxval = minval + kwargs['steps']/kwargs['res']
+                n = kwargs['steps']
+                
+            else:
+                maxval = minval + def_steps/kwargs['res']
+                n = def_steps
+        else:
+            if 'steps' in arglist:
+                maxval = minval + kwargs['steps']/def_res
+                n = kwargs['steps']
+            else:
+                maxval = minval + def_steps/def_res
+                n = def_steps
+    elif 'end' in arglist:
+        maxval = np.log10(kwargs['end'])
+        print('start is not in arglist. end is in arglist. maxval = ' + str(maxval))
+        
+        if 'res' in arglist:
+            if 'steps' in arglist:
+                minval = maxval - kwargs['steps']/kwargs['res']
+                n = kwargs['steps']
+            else:
+                minval = maxval - def_steps/kwargs['res']
+                n = def_steps
+        else:
+            if 'steps' in arglist:
+                minval = maxval - kwargs['steps']/def_res
+                n = kwargs['steps']
+            else:
+                minval = maxval - def_steps/def_res
+                n = def_steps
+                
+    elif 'res' in arglist:
+        print('start and end are not in arglist. res is in arglist.')
+        minval = def_min
+        if 'steps' in arglist:
+            maxval = minval + kwargs['steps']/def_res
+            n = kwargs['steps']
+        else:
+            maxval = minval + def_steps/def_res
+            n = def_steps
+        
+    else:
+        print('start, end, and res are not in arglist.')
+        if 'steps' in arglist:
+            minval = def_min
+            maxval = minval + kwargs['steps']/def_res
+            n = kwargs['steps']
+        else:
+            minval = def_min
+            maxval = minval + def_steps/def_res
+            n = def_steps
+    
+    print('minval: '+str(minval)+'  maxval: '+str(maxval)+'  n: '+str(n))
+    return np.logspace(minval, maxval, num = n, endpoint = True, base = 10)
