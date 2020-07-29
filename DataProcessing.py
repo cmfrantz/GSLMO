@@ -20,13 +20,15 @@ Requirements:
     HOBO_SiteB.csv
 
 Example in command line:
-    python DensityDiff.py
+    python DataProcessing.py
 
 Dependencies Install:
     sudo apt-get install python3-pip python3-dev
-    pip install datetime
+    pip install os
+    pip install pandas
     pip install numpy
     pip install matplotlib
+    pip install bokeh
 
 You will also need to have the following files
     in the same directory as this script.
@@ -54,14 +56,25 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 ####################
 # TO DO
 ####################
-# Format spreadsheet so columns are consistently named
-# Each month, automatically import and add new data
-# Export each tab as csv
-
-
-
-
-
+'''
+AUTOMATE PROCESSING SEQUENCE:
+    1. Load in logger data
+    2. For pendants, run weather station combiner script
+    3. Quality control: remove start and end where logger is out of water based on "jumps"
+    4. Match button data to combined pendant data by matching closest time
+    5. Add combined data to existing dataset
+    6. Grab Saltair elevation data from last point with 'A' to present
+        https://waterdata.usgs.gov/ut/nwis/dv/?site_no=10010000&agency_cd=USGS&amp;referred_module=sw
+        https://waterdata.usgs.gov/ut/nwis/dv?cb_62614=on&format=rdb&site_no=10010000&referred_module=sw&period=&begin_date=2019-11-07&end_date=2020-07-14
+    7. Re-build plots
+    8. Enter field data
+    9. Enter core data
+    
+LOAD FIELD NOTES AND ADD FIELD-BASED DATA PLOTS
+# Get file and data
+filename, directory, data = ResearchModules.fileGet(
+    'Select field notes file', tabletype = 'field')
+'''
 
 ####################
 # IMPORTS
@@ -70,17 +83,44 @@ import ResearchModules
 
 import os
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+
+from bokeh.io import show
+from bokeh.layouts import column
+from bokeh.plotting import figure, output_file, save
+from bokeh.models import ColumnDataSource, Div
 
 ####################
 # VARIABLES
 ####################
-datasets = {
+
+# Colors
+''' Unused colors
+'#565D47' # dark green
+'#B49C73' # beige
+'#62760C' # green
+'#523906' # dark brown
+'#888888' # gray
+'''
+clr_WildcatPurple = '#492365'
+clr_UniversityGray = '#575047'
+clr_Pantone436 = '#aa989c'
+clr_Pantone666 = '#a391b1'
+
+# Plot and dataset info
+locations = {
     'Site A'    : {
-        'water_density' : 1.07
+        'water_density' : 1.07,
+        #'color'         : 
+        #'color'         : 
+        'color'         :  clr_WildcatPurple
         },
     'Site B'    : {
-        'water_density' : 1.09
+        'water_density' : 1.09,
+        #'color'         : 
+        #'color'         : 
+        'color'         :  clr_UniversityGray
         }
     }
 
@@ -90,16 +130,18 @@ plotlist = {
         'range'         : 'Auto',
         
         1   : {
-            'dataset'   : 'Site A',
+            'location'   : 'Site A',
             'filetype'  : 'HOBO',
             'column'    : 'calc_water_depth_m',
-            'title'     : 'Site A (calculated)'
+            'title'     : 'Site A (calculated)',
+            'color'     : locations['Site A']['color']
             },
         2   : {
-            'dataset'   : 'Site B',
+            'location'   : 'Site B',
             'filetype'  : 'HOBO',
             'column'    : 'calc_water_depth_m',
-            'title'     : 'Site B (calculated)'
+            'title'     : 'Site B (calculated)',
+            'color'     : locations['Site B']['color']
             },
         },
     
@@ -108,22 +150,25 @@ plotlist = {
         'range'         : (-5,35),
         
         1   : {
-            'dataset'   : 'Site A',
+            'location'   : 'Site A',
             'filetype'  : 'HOBO',
             'column'    : 'ws_air_temp_C',
-            'title'     : 'Antelope Island weater station air temp'
+            'title'     : 'Antelope Island weater station air temp',
+            'color'     : clr_Pantone436
             },
         2   : {
-            'dataset'   : 'Site A',
+            'location'   : 'Site A',
             'filetype'  : 'HOBO',
             'column'    : 'pndt_water_temp_C',
-            'title'     : 'Site A water temp - Pendant'
+            'title'     : 'Site A water temp - Pendant',
+            'color'     : locations['Site A']['color']
             },
         3   : {
-            'dataset'   : 'Site B',
+            'location'   : 'Site B',
             'filetype'  : 'HOBO',
             'column'    : 'pndt_water_temp_C',
-            'title'     : 'Site B water temp - Pendant'
+            'title'     : 'Site B water temp - Pendant',
+            'color'     : locations['Site B']['color']
             }
         },
     
@@ -132,16 +177,18 @@ plotlist = {
         'range'         : (0, 7000),
         
         1   : {
-            'dataset'   : 'Site A',
+            'location'   : 'Site A',
             'filetype'  : 'HOBO',
             'column'    : 'bttn_top_light_lumen_ft2',
-            'title'     : 'Site A shuttle top'
+            'title'     : 'Site A shuttle top',
+            'color'     : locations['Site A']['color']
             },
         2   : {
-            'dataset'   : 'Site B',
+            'location'   : 'Site B',
             'filetype'  : 'HOBO',
             'column'    : 'bttn_top_light_lumen_ft2',
-            'title'     : 'Site B shuttle top'
+            'title'     : 'Site B shuttle top',
+            'color'     : locations['Site B']['color']
             }
         }
     }
@@ -192,97 +239,227 @@ filetypes = {
         
 plt_ht = 5
 plt_w = 10
+plt_pfx = 'GSL_plots_'
+toolset = 'xwheel_zoom, pan, box_zoom, reset, save'
+
+td_style = ' style = "padding: 5px"'
+bokeh_head = '''
+<h1>Great Salt Lake Microbialite Observatory</h1>
+<h2>Weber State University College of Science</h2>
+
+<p>Lead investigator: Dr. Carie Frantz, Department of Earth and Environmental 
+Sciences, <a href="mailto:cariefrantz@weber.edu">cariefrantz@weber.edu</a></p>
+<p>This project is funded by the National Science Foundation,
+<a href="https://www.nsf.gov/awardsearch/showAward?AWD_ID=1801760">
+Award #1801760</a></p>
+
+<h2>Instrument Sites</h2>
+<p>Both GSLMO instrument sites are located on the Northern shore of Antelope
+   Island and are accessed and operated under permits from Antelope Island
+   State Park and the State of Utah Division of Forestry, Fire, & State Lands.
+   </p>
+<table border = "1px" style = "border-collapse: collapse">
+<tr style = "background-color: ''' + clr_Pantone666 + ''';
+ color : white">
+    <th''' + td_style + '''>Site</th>
+    <th''' + td_style + '''>Description</th>
+    <th''' + td_style + '''>Location</th></tr>
+<tr>
+    <td''' + td_style + '''>Site A</td>
+    <td''' + td_style + '''>Muddy auto causeway site near Farmington Bay
+    outlet with high total inorganic carbon.</td>
+    <td''' + td_style + '''>41.06646, -112.23129
+        <a href="https://goo.gl/maps/66u5BPLuk1ykDvCP8">(map)</a></td>
+</tr>
+<tr><td''' + td_style + '''>Site B</td>
+    <td''' + td_style + '''>Microbialite reef site near Buffalo Point</td>
+    <td''' + td_style + '''>41.03811, -112.27889
+        <a href="https://goo.gl/maps/AsG9b5yYLwbXYKtA9">(map)</a></td>
+</tr>
+</table>
+
+<h2>Data Logger Plots</h2>
+<p>Plots display the daily minimum and maximum of hourly averages of 
+   recorded data. 
+   Use the tools in the toolbar to the right of each plot to explore the data.
+   Click legend items to turn plotted data on and off.</p>
+'''
 
 ####################
 # FUNCTIONS
 ####################
 
-def calc_depth(hobo_dataset, water_density):
-    '''Calculate water depth from pressure data and assumed density'''
-    gravity_factor = 9.80665
-    depth = ((hobo_dataset['pndt_water_pressure_kPa']
-              - hobo_dataset['ws_air_pressure_kPa'])
-             * water_density / gravity_factor)
-    return depth
-
-
-#%%
-####################
-# MAIN FUNCTION
-####################
-if __name__ == '__main__':
-    
-    
-    '''
-    PROCESSING SEQUENCE:
-        1. Load in logger data
-        2. For pendants, run weather station combiner script
-        3. Quality control: remove start and end where logger is out of water based on "jumps"
-        4. Match button data to combined pendant data by matching closest time
-        5. Add combined data to existing dataset
-        6. Grab Saltair elevation data from last point with 'A' to present
-            https://waterdata.usgs.gov/ut/nwis/dv/?site_no=10010000&agency_cd=USGS&amp;referred_module=sw
-            https://waterdata.usgs.gov/ut/nwis/dv?cb_62614=on&format=rdb&site_no=10010000&referred_module=sw&period=&begin_date=2019-11-07&end_date=2020-07-14
-        7. Re-build plots
-        8. Enter field data
-        9. Enter core data
-    '''
-    
-    
-    # Load HOBO files
+def loadHOBOFiles():
+    '''Loads in the HOBO logger datasets'''
     directory = os.getcwd()
-    for dataset in datasets:
+    for location in locations:
         # Get file and data
         filename, directory, data = ResearchModules.fileGet(
-            'Select ' + dataset + ' combined HOBO file', tabletype = 'HOBO',
+            'Select ' + location + ' combined HOBO file', tabletype = 'HOBO',
             directory = directory)
         # Drop na rows (rows with no values)
         data = data.loc[data.index.dropna()]
         # Convert datetime strings to datetime objects
         data['datetime'] = pd.to_datetime(data.index)
+        time_min = str(min(data['datetime']).date())
+        time_max = str(max(data['datetime']).date())
         
         # Do depth calculations
-        water_density = datasets[dataset]['water_density']
+        water_density = locations[location]['water_density']
         data['calc_water_depth_m'] = calc_depth(data, water_density)
         
         # Save
-        datasets[dataset]['HOBO'] = data
+        locations[location]['HOBO'] = data
+        
+    return directory, time_min, time_max
 
-    # Build plots
-    fig, axs = plt.subplots(len(plotlist), 1, sharex = True,
-                            figsize = (plt_w, plt_ht * len(plotlist)))
-    for i, plot in enumerate(plotlist):
-        lines = [m for m in plotlist[plot] if type(m) == int]
-        measlist = [plotlist[plot][line]['title'] for line in lines]
-        time_data = []
-        y_data = []
-        # Gather the data
+
+def calc_depth(hobo_location, water_density):
+    '''Calculate water depth from pressure data and assumed density'''
+    gravity_factor = 9.80665
+    depth = ((hobo_location['pndt_water_pressure_kPa']
+              - hobo_location['ws_air_pressure_kPa'])
+             * water_density / gravity_factor)
+    return depth
+
+
+def getPlotInfo(plot):
+    lines = [m for m in plotlist[plot] if type(m) == int]
+    measlist = [plotlist[plot][line]['title'] for line in lines]
+    return lines, measlist
+    
+    
+def getLineProperties(plot, line):
+    line_info = plotlist[plot][line]
+    ds = locations[line_info['location']][line_info['filetype']]
+    time_data = list(ds['datetime'])
+    y_data = list(pd.to_numeric(ds[line_info['column']], errors = 'coerce'))
+    return line_info, time_data, y_data
+
+
+def buildStaticPlots(directory, time_min, time_max):
+    '''Builds set of svg plots of timeseries data and HTML file for display'''
+    for plot in plotlist:
+
+        '''Builds set of svg plots of timeseries data'''
+        fig, ax = plt.subplots(figsize = (plt_w, plt_ht))
+        lines, measlist = getPlotInfo(plot)
+        
+        # Gather and plot the raw data for each line
         for line in lines:
-            # Add dataset (time values and y) to DataFrame
-            line_info = plotlist[plot][line]
-            ds = datasets[line_info['dataset']][line_info['filetype']]
-            time_data.append(list(ds['datetime']))
-            y_data.append(list(
-                pd.to_numeric(ds[line_info['column']], errors='coerce')))
+            line_info, time_data, y_data = getLineProperties(plot, line)
             
-        # Plot the data
-        ResearchModules.plotTimeseries(
-            axs[i], time_data, y_data, plotlist[plot]['y_axis'],
-            legend = measlist)
+            ax.plot(time_data, y_data, linewidth = 0.5, color = line_info['color'])
+            
+        ax.set_xlabel('Date')
+        ax.set_ylabel(plotlist[plot]['y_axis'])
+        ax.legend(measlist)
         y_range = plotlist[plot]['range']
         if type(y_range) == tuple and len(y_range) == 2:
-            axs[i].set_ylim(y_range)
+            ax.set_ylim(y_range)
     
-    # Save the plots
-    fig.savefig(directory + '\\GSL_plots.svg', transparent = True)
-            
-    # Add plots to html file
+        # Save the plots
+        fig.savefig(directory + '\\' + plt_pfx + plot + '.svg',
+                    transparent = True)
+   
+    # Write HTML file
+    pageHTML = '''
+    <HTML>
+    <header>
+    <h1>Great Salt Lake Microbialite Observatory</h1>
+    <p>Data plotted from ''' + time_min + ' to ' + time_max + '''</p>
+    <p>Page last updated ''' + str(pd.datetime.now().date()) + '''
+    </header>
+    <body>
+    <h2>Logger data plots</h2>'''
+    for plot in plotlist:
+        pageHTML = pageHTML + '''
+        <p><img src = "''' + plt_pfx + plot + '.svg" alt = "' + plot + '"></p>'
+    pageHTML = pageHTML + '''
+    </body>
+    </HTML>'''
+    # Write HTML String to file.html
+    filename = directory + '\\GSLMO_plots.html'
+    if os.path.isfile(filename):
+        os.remove(filename)
+    with open(filename, 'w') as file:
+        file.write(pageHTML)  
+
+
+
+def buildBokehPlots(directory):
+    # Set up the bokeh page
+    figures = []
     
-    
+    for plot in plotlist:
+        lines, measlist = getPlotInfo(plot)
         
-    # Load field notes
-    # Get file and data
-    filename, directory, data = ResearchModules.fileGet(
-        'Select field notes file', tabletype = 'field')
+        # Build the bokeh figure
+        fig = figure(plot_height = plt_ht*100, plot_width = plt_w*100,
+                     tools = toolset, x_axis_type = 'datetime',
+                     title = plot.title())
+        
+        # Gather and plot the raw data for each series
+        for i,line in enumerate(lines):
+            line_info, time_data, y_data = getLineProperties(plot, line)
+            
+            # Generate smoothed hourly data
+            y_df = pd.DataFrame(data = y_data, index = time_data,
+                                columns = ['y'], copy = True)
+            y_df = y_df[~y_df.index.duplicated()]
+            y_df = y_df.resample('1T').interpolate(
+                'index', limit = 20, limit_area = 'inside').resample(
+                    'h').asfreq().dropna()
+            # Find daily min/max values
+            daily_mm = y_df.resample('D')['y'].agg(['min','max'])        
+            # ax.fill_between(daily_mm.index, daily_mm['min'], daily_mm['max'])
+            
+            # Format the data for bokeh glyph render
+            x = np.hstack((daily_mm.index, np.flip(daily_mm.index)))
+            y = np.hstack((daily_mm['min'], np.flip(daily_mm['max'])))
+            datasource = ColumnDataSource(dict(x=x, y=y))
+            
+            # Build the figure
+            fig.patch('x', 'y', color = line_info['color'],
+                      alpha = 0.6, source = datasource,
+                      legend_label = measlist[i])
+            
+        # Label axes and title
+        fig.xaxis.axis_label = 'Date'
+        fig.yaxis.axis_label = plotlist[plot]['y_axis']
+        
+        # Configure legend
+        fig.legend.location = 'top_left'
+        fig.legend.click_policy = 'hide'
+
+        
+        # Link figure axes
+        if figures:
+            fig.x_range = figures[0].x_range
+            
+        figures.append(fig)
+    
+    # Save HTML page
+    figures.insert(0, Div(text = bokeh_head))
+    # show(column(figures))
+    output_file(directory + '\\GSLMO_plots_bokeh.html')
+    save(column(figures))
+        
+
+#%%
+####################
+# MAIN FUNCTION
+####################
+if __name__ == '__main__': 
+    
+    # Load HOBO files
+    directory, time_min, time_max = loadHOBOFiles()
+
+    # Build raw data plots and save HTML file
+    buildStaticPlots(directory, time_min, time_max)
+    
+    # Build Bokeh plots
+    buildBokehPlots(directory)
+
 
        
