@@ -10,6 +10,11 @@ from tkinter import filedialog
 import numpy as np
 import pandas as pd
 import math
+import matplotlib
+import matplotlib.pyplot as plt
+from pandas.plotting import register_matplotlib_converters
+
+
 
 
 
@@ -80,6 +85,135 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
     return filename, dirPath, data
 
 
+def plotTimeseries(ax, time_data, y_data, y_label = '', x_label = 'Date',
+                   title = '', legend = False, color = 'Auto',
+                   **kwargs = {'line_width' : 0.5}):
+    '''Builds a timeseries plot of the passed dataset(s)
+        
+    Parameters
+    ----------
+    ax : axis object
+        Axis to place the plots in
+    time_data: list of datenum objects
+        Datetime values corresponding to each datapoint.
+        Options are 'Generic' (default)
+    y_data: list of values, list of lists of values, or pandas.DataFrame
+        Should have the same number of values as the corresponding list(s) in
+        time_data
+    y_label : str, optional
+        Label for the y axis. The default is none ('').
+    x_label: str, optional
+        Label for the x axis. The defailt is 'Date'.
+    title: str, optional
+        Plot title. The default is none ('').
+    line_width: float, optional
+        Size of the plot lines. The default is 0.5.
+    color: tuple, list of tuples, or 'Auto', optional
+        RGBA values for line color(s); default is 'Auto'
+    legend: list of str or 'False', optional
+        List of labels for the legend; there should be as many entries as
+        there are y_data datasets. The default is False (no legend).
+        
+    Returns
+    -------
+    None.
+    '''
+    register_matplotlib_converters()
+    
+    def findType(var):
+        '''Internal function finds the variable type passed and prints error
+        message if an invalid value is passed'''
+        # Variables
+        error_text_pre = 'Error: y_data is in the wrong format. Passed '
+        error_text_sfx = ', not list of numerical values or pandas.DataFrame.'
+        num_type_list = [int, float, np.float64, np.float32, np.integer,
+                         pd._libs.tslibs.timestamps.Timestamp]
+        
+        # Function
+        var_type = type(var)
+
+        if var_type == list:
+            if type(var[0]) in num_type_list:
+                var_type = 'list'
+            elif type(var[0]) == list:
+                if type(var[0][0]) in num_type_list:
+                    var_type = 'list of lists'
+                else: print(error_text_pre + 'list of lists of ' +
+                            str(type(var[0][0])) + error_text_sfx)
+        elif isinstance(var, pd.DataFrame):
+            var_type = 'DataFrame'
+        else: print(error_text_pre + var_type + error_text_sfx)
+        
+        return var_type
+    
+    
+    def plotData(x_data, y_data, color = 'Auto'):
+        '''Internal function generates a plot with or without custom colors'''
+        error_color = 'Color specification invalid. Using default colors.'
+        if color != 'Auto' and not all(
+                [type(color) == tuple, len(color) == 4]):
+            color == 'Auto'
+            print(error_color)
+            ax.plot(x_data, y_data, color = color)
+        elif color != 'Auto'
+        if color == 'Auto':
+            ax.plot(x_data, y_data, lw = line_width)
+        else:
+            ax.plot(x_data, y_data, color = color)
+    
+    # Determine whether data is in a supported type format
+    type_time_data = findType(time_data)
+    type_y_data = findType(y_data)
+    type_legend = findType(legend)
+    
+    # Determine whether color is specified properly
+    if color != 'Auto':
+        type_color = type(color)
+        if type_color == tuple and len(color) == 4:
+            type_color = 'RGBA'
+        elif all(
+                [type_color == list, type(color[0]) == tuple,
+                 len(color[0]) == 4]):
+            type_color = 'list of RGBA'
+        else:
+            color = 'Auto'
+            print(error_color)
+    
+    # Plot the data based on the type of data passed
+    if type_time_data == 'list':
+        if type_y_data == 'list':
+            if type_color = 'RGBA':
+                ax.plot(time_data, y_data, lw = line_width, color = color)
+            else:
+                if color != 'Auto': print(error_color)
+                ax.plot(time_data, y_data, lw = line_width)
+        elif type_y_data == 'list of lists':
+            for i, y_set in enumerate(y_data):
+                if type_color == 'RGBA':
+                    ax.plot(time_data, y_set, lw = line_width, color = color)
+                elif type_color == 'list of RGBA':
+                    ax.plot(time_data, y_set, lw = line_iwdth,
+                            color = color[i])
+                else:
+                    ax.plot(time_data, y_set, lw = line_width)
+
+    elif type_time_data == 'list of lists':
+        if type_y_data == 'list of lists' and len(y_data) == len(time_data):
+            for i in range(len(time_data)):
+                
+                ax.plot(time_data[i], y_data[i], lw = line_width)
+        else: print('Error: time_data and y_data lists are different lengths')
+    else: print('Error: either time_data or y_data are in an unsupported ' +
+                'format for the function plotTimeseries')
+    
+
+    # Add labels 
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    if len(title)>0: ax.set_title(title)
+    # Add legend
+    if legend:
+        ax.legend(legend)
 
 
 
