@@ -57,6 +57,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 # TO DO
 ####################
 '''
+FIX
+    trimPendantData needs to check for any wacky values mid-log
+    
 AUTOMATE PROCESSING SEQUENCE:
     1. Load in logger data
     2. For pendants, run weather station combiner script
@@ -82,6 +85,9 @@ filename, directory, data = ResearchModules.fileGet(
 import ResearchModules
 
 import os
+import sys
+import subprocess
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -92,10 +98,36 @@ from bokeh.plotting import figure, output_file, save
 from bokeh.models import ColumnDataSource, Div
 
 ####################
-# VARIABLES
+# GLOBAL VARIABLES
 ####################
 
-# Colors
+####################
+# DATA IMPORT VARIABLES
+
+# Default directory
+directory = os.getcwd()
+
+# Types of input files and available variables
+filelist_all = {
+    'Site A'    : ['HOBO pendant', 'HOBO button top'],
+    'Site B'    : ['HOBO pendant', 'HOBO button top', 'HOBO button side']
+        }
+HOBO_pendant_col_datetime = 'Date Time, GMT-06:00'
+
+# Weather station data import variables
+lim_dTemp = 1   # Exclude any lines where the temperature change exceeds this
+lim_dDays = 10  # Max number of days to download from remote weater station
+                # at a time
+AMBIENT_API_KEY = '35c8a71b05324137a0bc3d220d17c6182df7184953d148c4b8fc8cafe6e06192'
+
+# File in which downloaded weather data is archived
+DATA_CACHE_FILE = 'weather-data-cache.csv'
+
+
+####################
+# PLOT VARIABLES
+
+# Color Palette
 ''' Unused colors
 '#565D47' # dark green
 '#B49C73' # beige
@@ -193,49 +225,9 @@ plotlist = {
         }
     }
 
-# Types of input files and available variables
-filetypes = {
-    'HOBO'      : {
-        'pressure'      : {
-            'pndt_water_pressure_kPa'   : 
-                'Water pressure (HOBO pendant, kPa)',
-            'ws_air_pressure_kPa'       : 
-                'Air pressure (weather station, kPa)',
-            'dPressure_kPa'             : 
-                '\Deltapressure (water - air; kPa)',
-            },
-        'temperature'   : {
-            'ws_air_temp_C'             : 
-                'Air temperature (weather station, \degC)',
-            'pndt_water_temp_C'         : 
-                'Water temperature (HOBO pendant, \degC)',
-            'bttn_side_temp_C'          : 
-                'Water temperature (HOBO button side, \degC)',
-            'bttn_top_temp_C'           : 
-                'Water temperature (HOBO button top, \degC)',
-            },
-        'light'         : {
-            'bttn_top_light_lumen_ft2'  : 
-                'Irradiance (HOBO button top, lumen/ft2)',
-            'bttn_side_light_lumen_ft2' : 
-                'Irradiance (HOBO button side, lumen/ft2)',
-            },
-        'salinity'      : {
-            'field_salinity_pct'        : 
-                'Water salinity (%)',
-            },
-        'density'       : {
-            'field_density_spgr'        : 
-                'Water density (sp. gr.)',
-            },
-        'depth'         : {
-            'field_water_depth_m'       : 
-                'Water depth (field; m)',
-            'calc_water_depth_m'        :
-                'Water depth (calculated; m)'
-            }
-        }
-    }
+
+####################
+# BOKEH PAGE VARIABLES
         
 plt_ht = 5
 plt_w = 10
@@ -285,9 +277,39 @@ Award #1801760</a></p>
    Click legend items to turn plotted data on and off.</p>
 '''
 
+
 ####################
 # FUNCTIONS
 ####################
+
+####################
+### SCRIPTS TO GET AND PROCESS HOBO LOGGER DATA
+    
+def trimHOBOPendant(data):
+    ''' This script trims HOBO Pendant data and removes bad values'''
+    lim_checkrows = 10
+    cols_data = list(data.columns)[:3]
+    cols_log = list(data.columns)[3:]
+    
+    # Delete anything before and after 'Logged'
+    toprow = list(data[data[cols_log[0]] == 'Logged'].index)[0] + 1
+    botrow = list(data[data[cols_log[1]] == 'Logged'].index)[0]
+    
+    # Delete any top lines above a T change >= lim_dt
+    for row in range(toprow + 1, toprow + lim_checkrows):
+        if abs(data.loc[row, cols_data[2]] 
+               - data.loc[row-1, cols_data[2]]) >= lim_dTemp:
+            toprow = row
+    
+    # Delete any bottom lines above a T change >= lim_dt
+    for row in np.arange(botrow, botrow-lim_checkrows, -1):
+        if abs(data.loc[row, cols_data[2]]
+               - data.loc[row-1, cols_data[2]]) >= lim_dTemp:
+            botrow = row
+            
+    # Trim
+    return data.loc[np.arange(toprow, botrow), cols_data]
+    
 
 def loadHOBOFiles():
     '''Loads in the HOBO logger datasets'''
@@ -295,15 +317,14 @@ def loadHOBOFiles():
     for location in locations:
         # Get file and data
         filename, directory, data = ResearchModules.fileGet(
-            'Select ' + location + ' combined HOBO file', tabletype = 'HOBO',
-            directory = directory)
+            'Select ' + location + ' combined HOBO file',
+            tabletype = 'HOBO_comb', directory = directory)
         # Drop na rows (rows with no values)
         data = data.loc[data.index.dropna()]
         # Convert datetime strings to datetime objects
         data['datetime'] = pd.to_datetime(data.index)
         time_min = str(min(data['datetime']).date())
         time_max = str(max(data['datetime']).date())
-        
         # Do depth calculations
         water_density = locations[location]['water_density']
         data['calc_water_depth_m'] = calc_depth(data, water_density)
@@ -313,6 +334,164 @@ def loadHOBOFiles():
         
     return directory, time_min, time_max
 
+#%% IN PROGRESS
+def processNewHOBOData():
+    '''
+    # Get file and data
+    1. Load in logger data
+    2. For pendants, run weather station combiner script
+    3. Quality control: remove start and end where logger is out of water based on "jumps"
+    4. Match button data to combined pendant data by matching closest time
+    5. Add combined data to existing dataset
+    6. Grab Saltair elevation data from last point with 'A' to present
+        https://waterdata.usgs.gov/ut/nwis/dv/?site_no=10010000&agency_cd=USGS&amp;referred_module=sw
+        https://waterdata.usgs.gov/ut/nwis/dv?cb_62614=on&format=rdb&site_no=10010000&referred_module=sw&period=&begin_date=2019-11-07&end_date=2020-07-14
+    7. Re-build plots
+    '''
+    
+    # Get files and data
+    directory = os.getcwd()
+    HOBOfiles = {}
+    # Ask user for each file, load files
+    for loc in filelist_all:
+        HOBOfiles[loc] = {}
+        for file in filelist_all[loc]:
+            if input('Load ' + loc + ' ' + file + ' file? Y/N  > ') == 'Y':
+                filename, directory, HOBOfiles[loc][file] = (
+                    ResearchModules.fileGet(
+                        'Select ' + loc + ' ' + file + ' file',
+                        tabletype = 'HOBO_raw', directory = directory))
+    # For pendant loggers, run the weather station combiner script
+    for loc in HOBOfiles:
+        for file in HOBOfiles[loc]:
+            if 'pendant' in file:
+                # Trim the file
+                data = trimHOBOPendant(HOBOfiles[loc][file])
+                # Find start and end dates
+                data['Date Time, GMT-06:00'] = pd.to_datetime(
+                    data[HOBO_pendant_col_datetime ])
+                # Convert datetime strings to datetime objects
+                data['datetime'] = pd.to_datetime(data.index)
+                timestart = min(data[HOBO_pendant_col_datetime])
+                timeend = max(data[HOBO_pendant_col_datetime])
+                # Download date ranges from weather station
+                get_station_data_for_period(timestart, timeend)
+                
+                
+'''                
+                num, rem = divmod(timedelta, lim_dDays)
+                date_min = timestart
+                if timedelta >= lim_dDays:
+                    date_max = timestart + pd.DateOffset(days = lim_dDays)
+                else:
+                    date_max = timestart + pd.DateOffset(days = timedelta)
+                for i in range(num+1):
+                    get_station_data_for_period(date_min, date_max, timedelta)
+                    date_max = date_min
+                # Fill this in
+                # HOBOfiles[loc]['combined'] = addWeatherData()
+                '''
+
+#%%
+####################
+### SCRIPTS TO DOWNLOAD AND PROCESS WEATHER STATION DATA
+
+def get_station_data_for_period(date_min, date_max):
+    """
+    This function gets weather data for a period of time
+    Data is downloaded by segments.
+    If downloading a file fails, the function continue trying
+    """
+    print("*** Downloading weather station data ***")
+    delta = pd.DateOffset(days = lim_dDays)
+    date_curr = date_min  # Start date
+    while date_curr < date_max:
+        sdate_min = date_curr.strftime('%Y-%m-%d')
+        # Upper date limit
+        if date_curr + delta > date_max:
+            sdate_max = date_max.strftime('%Y-%m-%d')
+        else:
+            sdate_max = (date_curr + delta).strftime('%Y-%m-%d')
+        print('Getting data for %s %s' % (sdate_min, sdate_max), end=' ')
+        # Try as many times as is needed to obtain the data
+        while not get_station_data(sdate_min, sdate_max):
+            print('\nTrying again...', end=' ')
+        print('... done.')
+        # Updating the cache
+        update_station_cache(sdate_min, sdate_max)
+        # Removing temporary files
+        # filename = get_station_data_filename(sdate_min, sdate_max)
+        # os.remove(filename)
+        # os.remove(filename.replace('.csv', '.txt'))
+        # To get the next segment
+        date_curr += delta
+        # time.sleep(60)
+        
+
+def get_station_data(sdate_min, sdate_max):
+    '''
+    This function runs the external script station_weather.
+    Returns true if the data is obtained.
+    Data is stored in an local file.
+    '''
+    
+    # Run station_weather.py
+    ret = subprocess.run(' '.join(['python', 'StationWeather.py',
+                                  sdate_min, sdate_max, AMBIENT_API_KEY]),
+                         capture_output=True, timeout=60) 
+    # To do: if the subprocess times out, figure out where it stopped and
+    # restart at a different date/time
+    if ret.returncode != 0:
+        # Program execution returns a invalid code
+        print('Error: station weather script execution failed')
+        print(ret.stdout)
+        sys.exit()
+    filename = get_station_data_filename(sdate_min, sdate_max)
+    data = pd.read_csv(filename)
+    if len(data) == 0:
+        # Sometimes API requests does not produce any data
+        # Print('Error: weather API is not providing data')
+        return False
+    else:
+        return True
+
+
+def update_station_cache(sdate_min, sdate_max):
+    """
+    This functions updates the cache of weather data.
+    That cache is an accumulative local file in which
+    every downloaded data is stored.
+    """
+    filename = get_station_data_filename(sdate_min, sdate_max)
+    if not os.path.isfile(filename):
+        # A valid file for the given dates does not exist
+        print('Warning: station data for the given date range does not exist')
+        return
+    last_data = pd.read_csv(filename)
+    last_data.columns = ['dt', 'temp', 'pressure', 'abs_pressure']
+    if not os.path.isfile(DATA_CACHE_FILE):
+        # If the cache file does not exists, it is created
+        last_data.to_csv(DATA_CACHE_FILE, index=False)
+        return
+    # Updating the cache file
+    cache_data = pd.read_csv(DATA_CACHE_FILE)
+    new_cache = pd.concat([last_data, cache_data]).drop_duplicates()
+    new_cache.to_csv(DATA_CACHE_FILE, index=False)
+    
+    
+def get_station_data_filename(date_min, date_max):
+    """
+    Using a minimum and a maximum dates, this function produces a filaname
+    for the station downloaded data.
+    """
+    filename = (date_min.replace('-', '') + '-' + date_max.replace('-', '')
+                + '.csv')
+    return filename
+
+
+#%%
+####################
+### SCRIPTS TO PROCESS AND PLOT IMPORTED DATA
 
 def calc_depth(hobo_location, water_density):
     '''Calculate water depth from pressure data and assumed density'''

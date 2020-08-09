@@ -57,6 +57,17 @@ Once python and the packages listed above have been installed, to run a script f
 
 ## Future fixes
 <ul>
-<li>The arrows and other features in the fanDiagram_2.6 script are acting up</li>
-<li>DataProcessing is far from finished</li>
+<li>fanDiagram_2.6: The arrows and other features in the fanDiagram_2.6 script are acting up</li>
+<li>DataProcessing:
+  <ul>
+  <li>Download weather data
+    <ul>
+    <li>Finish script</li>
+	<li>If weather download gives a timeout, restart from another date/time</li>
+	</ul>
+	</li>
+  <li>Combine HOBO & weather data</li>
+  <li>Add in field data plots</li>
+  </ul>
+  </li>
 </ul>

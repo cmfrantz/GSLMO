@@ -23,7 +23,8 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
         Text to put in the user input window.
     tabletype: str
         Type of table to input.
-        Options are 'Generic' (default), 'HOBO', 'field', and 'PHREEQC'
+        Options are 'Generic' (default), 'HOBO_raw', 'HOBO_comb', 'field',
+            and 'PHREEQC'
     directory : str, optional
         The start directory to search in. The default is os.getcwd().
     file_type : str, optional
@@ -46,7 +47,11 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
     '''
     
     # If type of file is specified, use the proper format
-    if tabletype == 'HOBO':
+    if tabletype == 'HOBO_raw':
+        header_row = 1
+        index_col = 0
+        file_type = 'csv'
+    if tabletype == 'HOBO_comb':
         header_row = 1
         index_col = 1
         file_type = 'csv'
