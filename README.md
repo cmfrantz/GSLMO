@@ -9,6 +9,7 @@ by Carie Frantz cariefrantz@weber.edu
 <tr><td>DensityDiff.py</td><td>Determines the relative difference that different water density assumptions make on the calculated lake depth from HOBO logger water pressure data and weather station air pressure data.</td><td>HOBO_SiteA.csv, HOBO_SiteB.csv</td></tr>
 <tr><td>fanDiagram_2.6.py</td><td>Builds fan diagrams with process arrows from PHREEQC saturation calculations.</td><td>PHREEQC-Out.csv</td></tr>
 <tr><td>fanDiagram_pH-T-points.py</td><td>Plots fan diagrams for all available minerals from PHREEQC saturation calculations. Overlays measured pH and T points from the field.</td><td>PHREEQC-Out.csv, GSL_FieldData.csv</td></tr>
+<tr><td>StationWeather.py</td><td>Downloads weather station data from remote weather station. Requires valid API key for remote weather station to work, the version in this code is intentionally invalid for security purposes. Requires additional dependencies not listed below.</td><td></td></tr>
 </table>
 
 ## Shared scripts
@@ -30,6 +31,8 @@ The code for this project requires the following list of packages in order to ru
 <li>os</li>
 <li>pandas</li>
 <li>progress</li>
+<li>subprocess</li>
+<li>sys</li>
 <li>tkinter</li>
 </ul>
 
