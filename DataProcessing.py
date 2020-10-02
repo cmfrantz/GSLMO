@@ -24,11 +24,13 @@ Example in command line:
 
 Dependencies Install:
     sudo apt-get install python3-pip python3-dev
+    pip install bokeh
+    pip install matplotlib
+    pip install numpy
     pip install os
     pip install pandas
-    pip install numpy
-    pip install matplotlib
-    pip install bokeh
+    pip install subprocess
+    pip install sys
 
 You will also need to have the following files
     in the same directory as this script.
@@ -59,6 +61,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 '''
 FIX
     trimPendantData needs to check for any wacky values mid-log
+    
+ADD
+    lake elevation data to depth plots
     
 AUTOMATE PROCESSING SEQUENCE:
     1. Load in logger data
@@ -97,6 +102,7 @@ from bokeh.layouts import column
 from bokeh.plotting import figure, output_file, save
 from bokeh.models import ColumnDataSource, Div
 
+
 ####################
 # GLOBAL VARIABLES
 ####################
@@ -109,10 +115,25 @@ directory = os.getcwd()
 
 # Types of input files and available variables
 filelist_all = {
-    'Site A'    : ['HOBO pendant', 'HOBO button top'],
-    'Site B'    : ['HOBO pendant', 'HOBO button top', 'HOBO button side']
+    'Site A'    : ['HOBO pendant', 'HOBO button top (A)'],
+    'Site B'    : ['HOBO pendant', 'HOBO button top (B)',
+                   'HOBO button side (C)']
         }
+HOBO_data_col_names = {
+    'pendant'   : {
+        'Date Time, GMT-06:00'      : 'timestamp',
+        'Abs Pres, kPa (LGR S/N: 20516679, SEN S/N: 20516679, LBL: AbsP)' : 
+            'Abs Pres (kPa)',
+        'Temp, °C (LGR S/N: 20516679, SEN S/N: 20516679, LBL: T)' : 'Temp (C)'
+        },
+    'button'    : {
+        'Date Time - GMT -07:00'    : 'timestamp',
+        'Temp, (*F)'                : 'Temp (F)',
+        'Intensity, (lum/ftÂ²)'     : 'Intensity (lum/ft^2)'
+        }
+    }
 HOBO_pendant_col_datetime = 'Date Time, GMT-06:00'
+HOBO_button_col_datetime = 'Date Time - GMT -07:00'
 
 # Weather station data import variables
 lim_dTemp = 1   # Exclude any lines where the temperature change exceeds this
@@ -174,7 +195,7 @@ plotlist = {
             'column'    : 'calc_water_depth_m',
             'title'     : 'Site B (calculated)',
             'color'     : locations['Site B']['color']
-            },
+            }
         },
     
     'temperature'   : {
@@ -285,34 +306,75 @@ Award #1801760</a></p>
 ####################
 ### SCRIPTS TO GET AND PROCESS HOBO LOGGER DATA
     
-def trimHOBOPendant(data):
-    ''' This script trims HOBO Pendant data and removes bad values'''
-    lim_checkrows = 10
-    cols_data = list(data.columns)[:3]
-    cols_log = list(data.columns)[3:]
+def trim_HOBO(data, logger_type):
+    ''' This script trims HOBO data and removes bad values
     
-    # Delete anything before and after 'Logged'
-    toprow = list(data[data[cols_log[0]] == 'Logged'].index)[0] + 1
-    botrow = list(data[data[cols_log[1]] == 'Logged'].index)[0]
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        raw HOBO input data
+    logger_type : str
+        options are 'pendant' and 'button'
+
+    Returns
+    -------
+    pandas.DataFrame
+        Trimmed data with datetime as index.
+        
+    '''
+
+    if logger_type == 'pendant':
+        cols_log = list(data.columns)[3:]
+        # Delete anything before and after 'Logged'
+        toprow = list(data[data[cols_log[0]] == 'Logged'].index)[0] + 1
+        botrow = list(data[data[cols_log[1]] == 'Logged'].index)[0]
+        # Set datetime column
+        datetime_col = HOBO_pendant_col_datetime
     
+    elif logger_type == 'button':
+        cols_log = list(data.columns)[2:]
+        toprow = 0
+        # Delete anything after 'Logged'
+        botrow = len(data)
+        # Set datetime column
+        datetime_col = HOBO_button_col_datetime
+            
+    # Format matrix
+    data.rename(columns = HOBO_data_col_names[logger_type], inplace = True)
+    data['timestamp'] = pd.to_datetime(data['timestamp'])
+    
+    # Trim matrix
+    cols_data = [HOBO_data_col_names[logger_type][header] for
+                 header in HOBO_data_col_names[logger_type]]
+    data = find_valid_data_by_temp(
+        data, cols_data, row_start = toprow, row_end = botrow)
+    
+    # Reindex matrix
+    data.set_index('timestamp', inplace = True)
+    
+    return data
+
+    
+def find_valid_data_by_temp(data, cols_data, row_start, row_end,
+                            lim_checkrows = 10):
+    '''Looks for and trims any data at start or end of logger dataset with
+    large temperature swings indicative of subaerial exposure'''
     # Delete any top lines above a T change >= lim_dt
-    for row in range(toprow + 1, toprow + lim_checkrows):
+    for row in range(row_start + 1, row_start + lim_checkrows):
         if abs(data.loc[row, cols_data[2]] 
                - data.loc[row-1, cols_data[2]]) >= lim_dTemp:
             toprow = row
-    
     # Delete any bottom lines above a T change >= lim_dt
-    for row in np.arange(botrow, botrow-lim_checkrows, -1):
+    for row in np.arange(row_end, row_end-lim_checkrows, -1):
         if abs(data.loc[row, cols_data[2]]
                - data.loc[row-1, cols_data[2]]) >= lim_dTemp:
             botrow = row
-            
     # Trim
-    return data.loc[np.arange(toprow, botrow), cols_data]
+    return data.loc[np.arange(toprow, botrow), cols_data]       
     
 
 def loadHOBOFiles():
-    '''Loads in the HOBO logger datasets'''
+    '''Loads in the combined HOBO logger datasets'''
     directory = os.getcwd()
     for location in locations:
         # Get file and data
@@ -361,22 +423,65 @@ def processNewHOBOData():
                     ResearchModules.fileGet(
                         'Select ' + loc + ' ' + file + ' file',
                         tabletype = 'HOBO_raw', directory = directory))
-    # For pendant loggers, run the weather station combiner script
+    
+    # Grab each dataset and merge based on timestamp
+    time_min = ''
+    time_max = ''
     for loc in HOBOfiles:
         for file in HOBOfiles[loc]:
-            if 'pendant' in file:
-                # Trim the file
-                data = trimHOBOPendant(HOBOfiles[loc][file])
-                # Find start and end dates
-                data['Date Time, GMT-06:00'] = pd.to_datetime(
-                    data[HOBO_pendant_col_datetime ])
-                # Convert datetime strings to datetime objects
-                data['datetime'] = pd.to_datetime(data.index)
+            # Trim and format the data
+            data = HOBOfiles[loc][file]
+            if 'pendant' in file: data = trim_HOBO(data, 'pendant')
+            elif 'button' in file: data = trim_HOBO(data, 'button')
+            HOBOfiles[loc][file] = data
+
+            # Find start and end dates
+            if not time_min or time_min > min(data.index):
+                time_min = min(data.index)
+            if not time_max or time_max < max(data.index):
+                time_max = max(data.index)
+           
+    # Create empty matrix with timestamps in 15 minute intervals
+    timestamps = pd.date_range(start = time_min, end = time_max, freq = '15T')
+    
+    # Merge data based on timestamp
+    
+    
+    
+    
+    combined_data = pd.DataFrame(data = None, index = timestamps)
+    if not combined_data: combined_data = data
+    else: combined_data = pd.merge_asof(
+        combined_data, data, left_index = True, right_index = True,
+        tolerance = pd.Timedelta('10T'))
+            
+    # Add weather station data for same timeframe
+    
+                
+                
+                
                 timestart = min(data[HOBO_pendant_col_datetime])
                 timeend = max(data[HOBO_pendant_col_datetime])
                 # Download date ranges from weather station
                 get_station_data_for_period(timestart, timeend)
-                
+                # Have user select downloaded weather files and then combine them
+                combined_weather_data = combine_weather_files(
+                    filedialog.askopenfilenames())
+                combined_weather_data.sort_index(inplace = True)
+                # Interpolate datasets to every 1 minute for better combining
+                data.set_index(HOBO_pendant_col_datetime, inplace = True)
+                '''for some reason this part isn't working
+                data_1m = data.resample('1T').interpolate(
+                    'index', limit = 400, limit_area = 'inside')
+                '''
+                weather_1m = combined_weather_data.resample('1T').interpolate(
+                    'index', limit = 20, limit_area = 'inside')
+                # Combine the datasets
+                merged_data = pd.merge_asof(
+                    data, weather_1m, left_index = True, right_index = True,
+                    tolerance = pd.Timedelta('5T'))
+                merged_data.interpolate(
+                    'index', limit = 60, limit_area = 'inside', inplace = True)
                 
 '''                
                 num, rem = divmod(timedelta, lim_dDays)
@@ -391,6 +496,41 @@ def processNewHOBOData():
                 # Fill this in
                 # HOBOfiles[loc]['combined'] = addWeatherData()
                 '''
+                
+
+#%%
+def download_lake_elevation_data(sdate_min, sdate_max):
+    """
+    This function downloads lake elevation data at Saltair from the USGS
+    waterdata web interface
+
+    Parameters
+    ----------
+    sdate_min : string
+        Start date for data download in format 'YYYY-mm-dd'.
+        (use date_min.strftime('%Y-%m-%d') to format a timestamp)
+    sdate_max : string
+        End date for data download in format 'YYYY-mm-dd'.
+
+    Returns
+    -------
+    elev_data : pandas DataFrame containing five columns:
+        agency | site_no | datetime | elevation (ft) | Data qualification
+        (A = Approved for publication, P = Provisional)
+
+    """
+    site_no = 10010000 # Great Salt Lake at Saltair Boat Harbor, UT
+    
+    # Generate URL
+    data_URL = ("https://waterdata.usgs.gov/nwis/dv?cb_62614=on&format=rdb" +
+                 "&site_no=" + str(site_no) + "&referred_module=sw&period=" +
+                 "&begin_date=" + sdate_min +
+                 "&end_date=" + sdate_max)
+    
+    # Load in website data
+    elev_data = pd.read_csv(data_URL, sep = '\t', header = 28)
+    
+    return elev_data
 
 #%%
 ####################
@@ -454,7 +594,28 @@ def get_station_data(sdate_min, sdate_max):
         return False
     else:
         return True
-
+    
+    
+def combine_weather_files(file_list):
+    '''
+    Function combines all downloaded weather files into a single csv
+    '''
+    # Load and combine all files
+    combined_weather_data = pd.concat(
+        [pd.read_csv(file, header = 0, index_col = 0) for file in file_list])
+    # Delete replicate rows
+    combined_weather_data.drop_duplicates(inplace = True)
+    # Find start and end date
+    combined_weather_data.index = pd.to_datetime(combined_weather_data.index)
+    date_min = min(combined_weather_data.index).strftime('%Y-%m-%d').replace(
+        '-','')
+    date_max = max(combined_weather_data.index).strftime('%Y-%m-%d').replace(
+        '-','')
+    # Export as csv
+    combined_weather_data.to_csv(date_min + '-' + date_max + '.csv')
+    print('Combined weather files.')
+    return combined_weather_data
+    
 
 def update_station_cache(sdate_min, sdate_max):
     """
@@ -566,6 +727,17 @@ def buildStaticPlots(directory, time_min, time_max):
 
 
 
+def nansplit(value_list):
+    '''Splits list at nans and returns list of nested lists (groups)'''
+    # Split off any nan-containing rows
+    groups = np.split(value_list, np.where(value_list.isnull().any(axis=1))[0])
+    # Remove NaN entries and delete
+    groups = [gr[~gr.isnull().any(axis=1)] for gr in groups if not
+              isinstance(gr, np.ndarray)]
+    groups = [gr for gr in groups if not gr.empty]
+    return groups
+
+
 def buildBokehPlots(directory):
     # Set up the bokeh page
     figures = []
@@ -591,17 +763,18 @@ def buildBokehPlots(directory):
                     'h').asfreq().dropna()
             # Find daily min/max values
             daily_mm = y_df.resample('D')['y'].agg(['min','max'])        
-            # ax.fill_between(daily_mm.index, daily_mm['min'], daily_mm['max'])
             
-            # Format the data for bokeh glyph render
-            x = np.hstack((daily_mm.index, np.flip(daily_mm.index)))
-            y = np.hstack((daily_mm['min'], np.flip(daily_mm['max'])))
-            datasource = ColumnDataSource(dict(x=x, y=y))
-            
-            # Build the figure
-            fig.patch('x', 'y', color = line_info['color'],
-                      alpha = 0.6, source = datasource,
-                      legend_label = measlist[i])
+            # Format the data for bokeh glyph render (new)
+            groups = nansplit(daily_mm)
+            for group in groups:
+                # Format x,y coordinates for each patch
+                x = np.hstack((group.index, np.flip(group.index)))
+                y = np.hstack((group['min'], np.flip(group['max'])))
+                datasource = ColumnDataSource(dict(x=x, y=y))
+                # Add patch
+                fig.patch('x', 'y', color = line_info['color'],
+                          alpha = 0.6, source = datasource,
+                          legend_label = measlist[i])
             
         # Label axes and title
         fig.xaxis.axis_label = 'Date'
