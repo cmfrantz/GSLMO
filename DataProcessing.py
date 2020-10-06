@@ -859,10 +859,14 @@ if __name__ == '__main__':
     directory, time_min, time_max = loadHOBOFiles()
 
     # Build raw data plots and save HTML file
+    print('Building basic (static) plots...')
     buildStaticPlots(directory, time_min, time_max)
     
     # Build Bokeh plots
+    print('Building Bokeh plots...')
     buildBokehPlots(directory)
 
+    # Tell user to upload everything
+    print('Processing complete! Remember to upload the shiny new files.')
 
        
