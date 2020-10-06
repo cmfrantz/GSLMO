@@ -108,6 +108,30 @@ from bokeh.models import ColumnDataSource, Div
 ####################
 
 ####################
+# DATA DOWNLOAD VARIABLES
+
+# URL of remote files
+GSLMO_data_URL = 'http://faculty.weber.edu/cariefrantz/GSL/data/'
+
+filelist_remote = {
+    'GSLMO Site A'  : {
+        'filename'  : 'SiteA_combined.csv',
+        'header'    : 1,
+        'timecol'   : 'datetime'
+        },
+    'GSLMO Site B'  : {
+        'filename'  : 'SiteB_combined.csv',
+        'header'    : 1,
+        'timecol'   : 'datetime'
+        },
+    'Lake Elevation'    : {
+        'filename'  : 'LakeElevationSaltair.csv',
+        'header'    : 29,
+        'timecol'   : '20d'
+        }
+    }
+
+####################
 # DATA IMPORT VARIABLES
 
 # Default directory
@@ -303,6 +327,8 @@ Award #1801760</a></p>
 # FUNCTIONS
 ####################
 
+#%%
+
 ####################
 ### SCRIPTS TO GET AND PROCESS HOBO LOGGER DATA
     
@@ -322,7 +348,14 @@ def trim_HOBO(data, logger_type):
         Trimmed data with datetime as index.
         
     '''
-
+    
+    '''
+    ####################
+    TROUBLESHOOT:
+        There are issues with the table reformatting in this function
+    ####################
+    '''
+    
     if logger_type == 'pendant':
         cols_log = list(data.columns)[3:]
         # Delete anything before and after 'Logged'
@@ -411,7 +444,17 @@ def processNewHOBOData():
     7. Re-build plots
     '''
     
-    # Get files and data
+    # Load in existing compiled files from the web server
+    GSLMO_data = {}
+    for file in filelist_remote:
+        print('Downloading ' + file + ' data from remote server...')
+        file_info = filelist_remote[file]
+        GSLMO_data[file] = pd.read_csv(GSLMO_data_URL + file_info['filename'],
+                                       header = file_info['header'])
+        GSLMO_data[file].index = pd.to_datetime(
+            GSLMO_data[file][file_info['timecol']])    
+    
+    # Get new files and data from the user
     directory = os.getcwd()
     HOBOfiles = {}
     # Ask user for each file, load files
@@ -423,6 +466,10 @@ def processNewHOBOData():
                     ResearchModules.fileGet(
                         'Select ' + loc + ' ' + file + ' file',
                         tabletype = 'HOBO_raw', directory = directory))
+    
+    '''
+    Function works up to this point.
+    '''
     
     # Grab each dataset and merge based on timestamp
     time_min = ''
@@ -499,6 +546,9 @@ def processNewHOBOData():
                 
 
 #%%
+####################
+### WORKING SCRIPTS TO DOWNLOAD EXTERNAL DATA
+
 def download_lake_elevation_data(sdate_min, sdate_max):
     """
     This function downloads lake elevation data at Saltair from the USGS
@@ -534,7 +584,7 @@ def download_lake_elevation_data(sdate_min, sdate_max):
 
 #%%
 ####################
-### SCRIPTS TO DOWNLOAD AND PROCESS WEATHER STATION DATA
+### WORKING SCRIPTS TO DOWNLOAD AND PROCESS WEATHER STATION DATA
 
 def get_station_data_for_period(date_min, date_max):
     """
@@ -565,7 +615,7 @@ def get_station_data_for_period(date_min, date_max):
         # os.remove(filename.replace('.csv', '.txt'))
         # To get the next segment
         date_curr += delta
-        # time.sleep(60)
+        time.sleep(10)
         
 
 def get_station_data(sdate_min, sdate_max):
@@ -652,7 +702,8 @@ def get_station_data_filename(date_min, date_max):
 
 #%%
 ####################
-### SCRIPTS TO PROCESS AND PLOT IMPORTED DATA
+### WORKING SCRIPTS TO PROCESS AND PLOT DATA
+### ONCE IT HAS BEEN IMPORTED, COMBINED, AND CLEANED
 
 def calc_depth(hobo_location, water_density):
     '''Calculate water depth from pressure data and assumed density'''
