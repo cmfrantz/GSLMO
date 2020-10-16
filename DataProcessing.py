@@ -92,6 +92,7 @@ import ResearchModules
 import os
 import sys
 import subprocess
+import time
 
 import pandas as pd
 import numpy as np
@@ -113,16 +114,30 @@ from bokeh.models import ColumnDataSource, Div
 # URL of remote files
 GSLMO_data_URL = 'http://faculty.weber.edu/cariefrantz/GSL/data/'
 
+GSLMO_standard_data_cols = ['dtnum','datetime','pndt_water_pressure_kPa',
+                            'pndt_water_temp_C', 'ws_air_temp_F',
+                            'ws_air_pressure_atm', 'ws_air_temp_C',
+                            'ws_air_pressure_kPa', 'dPressure_kPa',
+                            'calc_water_depth_m']
+
 filelist_remote = {
     'GSLMO Site A'  : {
         'filename'  : 'SiteA_combined.csv',
         'header'    : 1,
-        'timecol'   : 'datetime'
+        'timecol'   : 'datetime',
+        'datacols'  : (GSLMO_standard_data_cols + 
+                       ['bttn_top_temp_F', 'bttn_top_light_lumen_ft2',
+                            'bttn_top_temp_C', 'meas_water_depth_m'])
         },
     'GSLMO Site B'  : {
         'filename'  : 'SiteB_combined.csv',
         'header'    : 1,
-        'timecol'   : 'datetime'
+        'timecol'   : 'datetime',
+        'datacols'  : (GSLMO_standard_data_cols +
+                       ['bttn_top_temp_F', 'bttn_top_light_lumen_ft2',
+                           'bttn_side_temp_F', 'bttn_side_light_lumen_ft2',
+                           'bttn_top_temp_C', 'bttn_side_temp_C', 
+                           'meas_water_depth_m'])
         },
     'Lake Elevation'    : {
         'filename'  : 'LakeElevationSaltair.csv',
@@ -130,6 +145,9 @@ filelist_remote = {
         'timecol'   : '20d'
         }
     }
+
+weather_station_download_columns = ['ws_temp_F', 'ws_rel_pressure_inHg',
+                                    'ws_abs_pressure_inHg']
 
 ####################
 # DATA IMPORT VARIABLES
@@ -144,20 +162,17 @@ filelist_all = {
                    'HOBO button side (C)']
         }
 HOBO_data_col_names = {
-    'pendant'   : {
-        'Date Time, GMT-06:00'      : 'timestamp',
-        'Abs Pres, kPa (LGR S/N: 20516679, SEN S/N: 20516679, LBL: AbsP)' : 
-            'Abs Pres (kPa)',
-        'Temp, °C (LGR S/N: 20516679, SEN S/N: 20516679, LBL: T)' : 'Temp (C)'
-        },
-    'button'    : {
-        'Date Time - GMT -07:00'    : 'timestamp',
-        'Temp, (*F)'                : 'Temp (F)',
-        'Intensity, (lum/ftÂ²)'     : 'Intensity (lum/ft^2)'
-        }
+    'pendant'   : ['pndt_water_pressure_kPa', 'pndt_water_temp_C'],
+    'button'    : ['bttn_temp_C', 'bttn_light_lumen_ft2']
     }
-HOBO_pendant_col_datetime = 'Date Time, GMT-06:00'
-HOBO_button_col_datetime = 'Date Time - GMT -07:00'
+button_prefixes = {
+    'Site A'    : {
+        'bttn_top'    : 'HOBO button top (A)'
+        },
+    'Site B'    : {
+        'bttn_top'    : 'HOBO button top (B)',
+        'bttn_side'   : 'HOBO button side (C)'}
+    }
 
 # Weather station data import variables
 lim_dTemp = 1   # Exclude any lines where the temperature change exceeds this
@@ -167,6 +182,15 @@ AMBIENT_API_KEY = '35c8a71b05324137a0bc3d220d17c6182df7184953d148c4b8fc8cafe6e06
 
 # File in which downloaded weather data is archived
 DATA_CACHE_FILE = 'weather-data-cache.csv'
+
+
+####################
+# DATA PROCESSING VARIABLES
+density = {
+    'Site A'    : 1.08,
+    'Site B'    : 1.09
+    }
+
 
 
 ####################
@@ -348,62 +372,57 @@ def trim_HOBO(data, logger_type):
         Trimmed data with datetime as index.
         
     '''
+
+    col_list = list(data.columns)
     
-    '''
-    ####################
-    TROUBLESHOOT:
-        There are issues with the table reformatting in this function
-    ####################
-    '''
-    
+    # Trim logger data
     if logger_type == 'pendant':
         cols_log = list(data.columns)[3:]
         # Delete anything before and after 'Logged'
         toprow = list(data[data[cols_log[0]] == 'Logged'].index)[0] + 1
         botrow = list(data[data[cols_log[1]] == 'Logged'].index)[0]
-        # Set datetime column
-        datetime_col = HOBO_pendant_col_datetime
+        # Reindex with timestamp
+        data.set_index(col_list[0], inplace = True)
+        col_list = list(data.columns)
     
     elif logger_type == 'button':
-        cols_log = list(data.columns)[2:]
         toprow = 0
-        # Delete anything after 'Logged'
         botrow = len(data)
-        # Set datetime column
-        datetime_col = HOBO_button_col_datetime
-            
-    # Format matrix
-    data.rename(columns = HOBO_data_col_names[logger_type], inplace = True)
-    data['timestamp'] = pd.to_datetime(data['timestamp'])
+        
+    # Rename columns
+    cols_data = HOBO_data_col_names[logger_type]
+    col_map = dict(zip(col_list, cols_data))
+    data.rename(columns = col_map, inplace = True)
     
-    # Trim matrix
-    cols_data = [HOBO_data_col_names[logger_type][header] for
-                 header in HOBO_data_col_names[logger_type]]
+    # Trim matrix to get rid of likely out-of-water values
+    data[cols_data] = data[cols_data].apply(pd.to_numeric, errors = 'coerce')
     data = find_valid_data_by_temp(
         data, cols_data, row_start = toprow, row_end = botrow)
-    
+        
     # Reindex matrix
+    data['timestamp'] = pd.to_datetime(data.index.values.tolist())
     data.set_index('timestamp', inplace = True)
     
     return data
 
-    
+
 def find_valid_data_by_temp(data, cols_data, row_start, row_end,
                             lim_checkrows = 10):
     '''Looks for and trims any data at start or end of logger dataset with
     large temperature swings indicative of subaerial exposure'''
+    temp_col_name = [col for col in data.columns if 'temp' in col][0]
     # Delete any top lines above a T change >= lim_dt
     for row in range(row_start + 1, row_start + lim_checkrows):
-        if abs(data.loc[row, cols_data[2]] 
-               - data.loc[row-1, cols_data[2]]) >= lim_dTemp:
+        if abs(data.iloc[row][temp_col_name] 
+               - data.iloc[row-1][temp_col_name]) >= lim_dTemp:
             toprow = row
     # Delete any bottom lines above a T change >= lim_dt
-    for row in np.arange(row_end, row_end-lim_checkrows, -1):
-        if abs(data.loc[row, cols_data[2]]
-               - data.loc[row-1, cols_data[2]]) >= lim_dTemp:
+    for row in np.arange(row_end-1, row_end-lim_checkrows-1, -1):
+        if abs(data.iloc[row][temp_col_name]
+               - data.iloc[row-1][temp_col_name]) >= lim_dTemp:
             botrow = row
     # Trim
-    return data.loc[np.arange(toprow, botrow), cols_data]       
+    return data.iloc[np.arange(toprow, botrow)][cols_data].copy()      
     
 
 def loadHOBOFiles():
@@ -429,22 +448,11 @@ def loadHOBOFiles():
         
     return directory, time_min, time_max
 
-#%% IN PROGRESS
-def processNewHOBOData():
-    '''
-    # Get file and data
-    1. Load in logger data
-    2. For pendants, run weather station combiner script
-    3. Quality control: remove start and end where logger is out of water based on "jumps"
-    4. Match button data to combined pendant data by matching closest time
-    5. Add combined data to existing dataset
-    6. Grab Saltair elevation data from last point with 'A' to present
-        https://waterdata.usgs.gov/ut/nwis/dv/?site_no=10010000&agency_cd=USGS&amp;referred_module=sw
-        https://waterdata.usgs.gov/ut/nwis/dv?cb_62614=on&format=rdb&site_no=10010000&referred_module=sw&period=&begin_date=2019-11-07&end_date=2020-07-14
-    7. Re-build plots
-    '''
+# %%
+    ''' Test these! '''
     
-    # Load in existing compiled files from the web server
+def get_files_from_server():
+    '''  Loads in existing compiled files from the web server '''
     GSLMO_data = {}
     for file in filelist_remote:
         print('Downloading ' + file + ' data from remote server...')
@@ -452,9 +460,12 @@ def processNewHOBOData():
         GSLMO_data[file] = pd.read_csv(GSLMO_data_URL + file_info['filename'],
                                        header = file_info['header'])
         GSLMO_data[file].index = pd.to_datetime(
-            GSLMO_data[file][file_info['timecol']])    
-    
-    # Get new files and data from the user
+            GSLMO_data[file][file_info['timecol']])
+    return GSLMO_data
+
+
+def load_new_HOBO_files():
+    '''Gets new HOBO files from the user and processes them'''
     directory = os.getcwd()
     HOBOfiles = {}
     # Ask user for each file, load files
@@ -466,84 +477,199 @@ def processNewHOBOData():
                     ResearchModules.fileGet(
                         'Select ' + loc + ' ' + file + ' file',
                         tabletype = 'HOBO_raw', directory = directory))
-    
-    '''
-    Function works up to this point.
-    '''
-    
-    # Grab each dataset and merge based on timestamp
+       
+    # Grab data from each HOBO dataset
+    print('Loading datasets...')
     time_min = ''
     time_max = ''
     for loc in HOBOfiles:
         for file in HOBOfiles[loc]:
             # Trim and format the data
-            data = HOBOfiles[loc][file]
+            data = HOBOfiles[loc][file].copy()
             if 'pendant' in file: data = trim_HOBO(data, 'pendant')
             elif 'button' in file: data = trim_HOBO(data, 'button')
-            HOBOfiles[loc][file] = data
+            HOBOfiles[loc][file] = data.copy()
 
             # Find start and end dates
             if not time_min or time_min > min(data.index):
                 time_min = min(data.index)
             if not time_max or time_max < max(data.index):
                 time_max = max(data.index)
-           
-    # Create empty matrix with timestamps in 15 minute intervals
-    timestamps = pd.date_range(start = time_min, end = time_max, freq = '15T')
-    
-    # Merge data based on timestamp
-    
-    
-    
-    
-    combined_data = pd.DataFrame(data = None, index = timestamps)
-    if not combined_data: combined_data = data
-    else: combined_data = pd.merge_asof(
-        combined_data, data, left_index = True, right_index = True,
-        tolerance = pd.Timedelta('10T'))
-            
-    # Add weather station data for same timeframe
-    
                 
-                
-                
-                timestart = min(data[HOBO_pendant_col_datetime])
-                timeend = max(data[HOBO_pendant_col_datetime])
-                # Download date ranges from weather station
-                get_station_data_for_period(timestart, timeend)
-                # Have user select downloaded weather files and then combine them
-                combined_weather_data = combine_weather_files(
-                    filedialog.askopenfilenames())
-                combined_weather_data.sort_index(inplace = True)
-                # Interpolate datasets to every 1 minute for better combining
-                data.set_index(HOBO_pendant_col_datetime, inplace = True)
-                '''for some reason this part isn't working
-                data_1m = data.resample('1T').interpolate(
-                    'index', limit = 400, limit_area = 'inside')
-                '''
-                weather_1m = combined_weather_data.resample('1T').interpolate(
-                    'index', limit = 20, limit_area = 'inside')
-                # Combine the datasets
-                merged_data = pd.merge_asof(
-                    data, weather_1m, left_index = True, right_index = True,
-                    tolerance = pd.Timedelta('5T'))
-                merged_data.interpolate(
-                    'index', limit = 60, limit_area = 'inside', inplace = True)
-                
-'''                
-                num, rem = divmod(timedelta, lim_dDays)
-                date_min = timestart
-                if timedelta >= lim_dDays:
-                    date_max = timestart + pd.DateOffset(days = lim_dDays)
-                else:
-                    date_max = timestart + pd.DateOffset(days = timedelta)
-                for i in range(num+1):
-                    get_station_data_for_period(date_min, date_max, timedelta)
-                    date_max = date_min
-                # Fill this in
-                # HOBOfiles[loc]['combined'] = addWeatherData()
-                '''
-                
+    return HOBOfiles, time_min, time_max
+
+
+def get_format_convert_weather_station_data(time_min, time_max):
+    '''Gets weather station data from the Antelope Island weather station
+    for the date range that the HOBO data covers
+
+    Parameters
+    ----------
+    time_min : timestamp
+        Earliest timestamp for the logger data.
+    time_max : timestamp
+        Last timestamp for the logger data.
+
+    Returns
+    -------
+    combined_weather_data : pandas.DataFrame
+        Raw downloaded weather data.
+    ws_resampled : pandas.DataFrame
+        Processed and resampled weather data.
+
+    '''
+    
+    # Get weather station data for date range HOBO data covers
+    get_station_data_for_period(
+        time_min, time_max + pd.Timedelta(value = 1, unit = 'day'))
+    root=Tk()
+    combined_weather_data = combine_weather_files(
+        filedialog.askopenfilenames(
+            title = 'Select weather station data files'))
+    root.destroy()
+    combined_weather_data.sort_index(inplace = True)
+    combined_weather_data.rename(columns = dict(
+        zip(list(combined_weather_data.columns),
+            weather_station_download_columns)),
+        inplace = True)
+    
+    # Convert weather station data
+    combined_weather_data['ws_air_pressure_kPa'] = (
+        combined_weather_data['ws_abs_pressure_inHg']*3.386)
+    combined_weather_data['ws_air_temp_C'] = (
+        
+        (combined_weather_data['ws_temp_F']-32)*5/9)
+    # Resample to 15 minute intervals and rename columns
+    ws_resampled = combined_weather_data.resample(
+        '5T').fillna('nearest').resample('15T').mean()
+    
+    return combined_weather_data, ws_resampled
+                    
+
+def merge_HOBO_data(loc, file_set, ws_data):
+    ''' Merge HOBO data at each site based on timestamp
+
+    Parameters
+    ----------
+    loc : str
+        Location name (i.e., 'Site A' or 'Site B').
+    file_set : dict
+        Dict containing all of the HOBO files for the site.
+    ws_data : pandas.DataFrame
+        DataFrame containing the weather station data to be merged.
+
+    Returns
+    -------
+    combined_data : pandas.DataFrame
+        Merged data.
+
+    '''
+
+    # Grab weather station data
+    combined_data = ws_data.copy()
+    
+    data_cols = []
+    
+    # Merge pendant data
+    if 'HOBO pendant' in list(file_set):
+        combined_data = (
+            pd.merge_asof(combined_data, file_set['HOBO pendant'],
+                          left_index = True, right_index = True,
+                          tolerance = pd.Timedelta('15T')))
+        data_cols.append(HOBO_data_col_names['pendant'][0])
+    else: combined_data = pd.merge(
+        combined_data, pd.DataFrame(
+            np.nan, index = combined_data.index,
+            columns = HOBO_data_col_names['pendant']),
+        left_index = True, right_index = True)
+    
+    # Merge button data
+    button_files = [file for file in file_set if 'button' in file]
+    buttons = button_prefixes[loc]
+    for button in list(buttons):
+        if buttons[button] in button_files:
+            button_data = file_set[buttons[button]]
+            new_col_names = [column.replace('bttn',button)
+                             for column in button_data.columns]
+            button_data.rename(
+                columns = dict(zip(button_data.columns, new_col_names)),
+                inplace = True)
+            combined_data = (
+                pd.merge_asof(combined_data,
+                              button_data,
+                              left_index = True, right_index = True,
+                              tolerance = pd.Timedelta('15T')))
+            data_cols.append(new_col_names[0])
+    
+    # Calculate depth
+    combined_data['dPressure'] = (
+        combined_data['pndt_water_pressure_kPa'] -
+        combined_data['ws_air_pressure_kPa'])
+    combined_data['calc_water_depth_m'] = (
+        combined_data['dPressure'] * density[loc] / 
+        ResearchModules.gravity_factor)
+    
+    # Ask user for manual water depth measurement
+    meas_water_depth_in = input('Enter the manually-measured water depth'
+                               + ' (in inches) at ' + loc + '.'
+                               + ' It will be appended to the end of the'
+                               + ' HOBO logger dataset.'
+                               + ' If no measurement was taken, enter '
+                               + ' "na".  > ')  
+    try:
+        float(meas_water_depth_in)
+        # Find the last logger measurement
+        last_index = combined_data.index[0]
+        for col in data_cols:
+            last = combined_data.apply(pd.Series.last_valid_index)[col]
+            if last_index < last:
+                last_index = last
+        # Enter the converted measurement
+        meas_water_depth_m = float(meas_water_depth_in) * 0.0254
+        combined_data.loc[last_index, 'meas_water_depth_m'] = (
+            meas_water_depth_m)
+        print('Entering ' + str(meas_water_depth_m) + ' m ('
+              + meas_water_depth_in + '").')
+    except ValueError:
+        print('No manual measurement entered.')
+        
+    return combined_data
+
+#%% IN PROGRESS
+def processNewHOBOData():
+    '''Run this after retrieving new HOBO data from the field in order to
+        update files and regenerate plots.'''
+
+    # Download logger data from server
+    GSLMO_data = get_files_from_server()
+    
+    # Get new HOBO files from user
+    HOBOfiles, time_min, time_max = load_new_HOBO_files()
+    
+    # Download and compile corresponding weather data
+    combined_weather_data, ws_resampled = (
+        get_format_convert_weather_station_data(time_min, time_max))
+    ''' TO DO
+    # Merge weather station data with downloaded data & save file
+    '''
+    
+    # Merge HOBO data with weather data
+    for loc in HOBOfiles:
+        combined_data = merge_HOBO_data(
+            HOBOfiles[loc], button_prefixes[loc],
+            ws_resampled[['ws_air_pressure_kPa', 'ws_air_temp_C']])
+        ''' TO DO
+        # Merge with downloaded data & save file
+        '''
+    ''' Final To Dos    
+    # Grab Saltair elevation data from last point with 'A' to present
+        https://waterdata.usgs.gov/ut/nwis/dv/?site_no=10010000&agency_cd=USGS&amp;referred_module=sw
+        https://waterdata.usgs.gov/ut/nwis/dv?cb_62614=on&format=rdb&site_no=10010000&referred_module=sw&period=&begin_date=2019-11-07&end_date=2020-07-14
+    # Re-build the plots
+    '''
+    print('Woohoo! Processing complete. Upload files to the remote server.')
+         
+             
 
 #%%
 ####################
@@ -606,7 +732,6 @@ def get_station_data_for_period(date_min, date_max):
         # Try as many times as is needed to obtain the data
         while not get_station_data(sdate_min, sdate_max):
             print('\nTrying again...', end=' ')
-        print('... done.')
         # Updating the cache
         update_station_cache(sdate_min, sdate_max)
         # Removing temporary files
@@ -615,7 +740,7 @@ def get_station_data_for_period(date_min, date_max):
         # os.remove(filename.replace('.csv', '.txt'))
         # To get the next segment
         date_curr += delta
-        time.sleep(10)
+        print('... done.')
         
 
 def get_station_data(sdate_min, sdate_max):
