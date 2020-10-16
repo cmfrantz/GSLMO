@@ -12,6 +12,11 @@ import pandas as pd
 import math
 
 
+# GLOBAL VARIABLES
+gravity_factor = 9.80665
+
+
+# FUNCTIONS
 
 def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
             file_type = 'csv', header_row = 0, index_col = 0):
@@ -85,7 +90,9 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
     return filename, dirPath, data
 
 
-
+def calcDepth(water_pressure, air_pressure, density):
+    depth = (water_pressure - air_pressure) * density / gravity_factor
+    return depth
 
 
 def round1SF(list):

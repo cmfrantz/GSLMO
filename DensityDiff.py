@@ -70,17 +70,6 @@ import ResearchModules
 
 
 
-####################
-# FUNCTIONS
-####################
-
-def calcDepth(water_pressure, air_pressure, density):
-    gravity_factor = 9.80665
-    depth = (water_pressure - air_pressure) * density / gravity_factor
-    return depth
-
-
-
 #%%
 ####################
 # MAIN FUNCTION
@@ -104,9 +93,9 @@ if __name__ == '__main__':
     max_density = 1.106
     
     # Calculate water depth
-    depth_min_density = calcDepth(
+    depth_min_density = ResearchModules.calcDepth(
         data['water_pressure'], data['air_pressure_kPa'],  min_density)
-    depth_max_density = calcDepth(
+    depth_max_density = ResearchModules.calcDepth(
         data['water_pressure'], data['air_pressure_kPa'], max_density)
     differences = depth_max_density - depth_min_density
     max_diff = np.nanmax(differences) * 100
