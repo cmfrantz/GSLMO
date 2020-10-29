@@ -24,17 +24,17 @@ Example in command line:
 
 Dependencies Install:
     sudo apt-get install python3-pip python3-dev
-    pip install bokeh
-    pip install matplotlib
-    pip install numpy
     pip install os
-    pip install pandas
-    pip install subprocess
     pip install sys
+    pip install subprocess
+    pip install pandas
+    pip install numpy
+    pip install matplotlib
+    pip install bokeh
 
 You will also need to have the following files
     in the same directory as this script.
-They contain modules and variables that this script calls.
+    They contain modules and variables that this script calls.
     ResearchModules.py
 If you get an error indicating that one of these modules is not found,
     change the working directory to the directory containing these files.
@@ -64,24 +64,8 @@ FIX
     
 ADD
     lake elevation data to depth plots
-    
-AUTOMATE PROCESSING SEQUENCE:
-    1. Load in logger data
-    2. For pendants, run weather station combiner script
-    3. Quality control: remove start and end where logger is out of water based on "jumps"
-    4. Match button data to combined pendant data by matching closest time
-    5. Add combined data to existing dataset
-    6. Grab Saltair elevation data from last point with 'A' to present
-        https://waterdata.usgs.gov/ut/nwis/dv/?site_no=10010000&agency_cd=USGS&amp;referred_module=sw
-        https://waterdata.usgs.gov/ut/nwis/dv?cb_62614=on&format=rdb&site_no=10010000&referred_module=sw&period=&begin_date=2019-11-07&end_date=2020-07-14
-    7. Re-build plots
-    8. Enter field data
-    9. Enter core data
-    
-LOAD FIELD NOTES AND ADD FIELD-BASED DATA PLOTS
-# Get file and data
-filename, directory, data = ResearchModules.fileGet(
-    'Select field notes file', tabletype = 'field')
+    Automate field notes and core notes data entry
+
 '''
 
 ####################
@@ -92,7 +76,6 @@ import ResearchModules
 import os
 import sys
 import subprocess
-import time
 
 import pandas as pd
 import numpy as np
@@ -114,35 +97,33 @@ from bokeh.models import ColumnDataSource, Div
 # URL of remote files
 GSLMO_data_URL = 'http://faculty.weber.edu/cariefrantz/GSL/data/'
 
-GSLMO_standard_data_cols = ['dtnum','datetime','pndt_water_pressure_kPa',
-                            'pndt_water_temp_C', 'ws_air_temp_F',
-                            'ws_air_pressure_atm', 'ws_air_temp_C',
-                            'ws_air_pressure_kPa', 'dPressure_kPa',
-                            'calc_water_depth_m']
+GSLMO_standard_data_cols = ['datetime','ws_air_temp_C','ws_air_pressure_kPa',
+                            'pndt_water_temp_C','pndt_water_pressure_kPa',
+                            'dPressure_kPa','calc_water_depth_m']
 
 filelist_remote = {
     'GSLMO Site A'  : {
         'filename'  : 'SiteA_combined.csv',
-        'header'    : 1,
+        'header'    : 0,
         'timecol'   : 'datetime',
         'datacols'  : (GSLMO_standard_data_cols + 
-                       ['bttn_top_temp_F', 'bttn_top_light_lumen_ft2',
-                            'bttn_top_temp_C', 'meas_water_depth_m'])
+                       ['bttn_top_temp_C', 'bttn_top_light_lumen_ft2',
+                        'meas_water_depth_m'])
         },
     'GSLMO Site B'  : {
         'filename'  : 'SiteB_combined.csv',
-        'header'    : 1,
+        'header'    : 0,
         'timecol'   : 'datetime',
         'datacols'  : (GSLMO_standard_data_cols +
-                       ['bttn_top_temp_F', 'bttn_top_light_lumen_ft2',
-                           'bttn_side_temp_F', 'bttn_side_light_lumen_ft2',
-                           'bttn_top_temp_C', 'bttn_side_temp_C', 
-                           'meas_water_depth_m'])
+                       ['bttn_top_temp_C', 'bttn_top_light_lumen_ft2',
+                        'bttn_side_temp_C', 'bttn_side_light_lumen_ft2',
+                        'meas_water_depth_m'])
         },
     'Lake Elevation'    : {
         'filename'  : 'LakeElevationSaltair.csv',
         'header'    : 29,
-        'timecol'   : '20d'
+        'timecol'   : '20d',
+        'datacols'  : ['source','site','date','elevation_ft','validated']
         }
     }
 
@@ -351,7 +332,52 @@ Award #1801760</a></p>
 # FUNCTIONS
 ####################
 
-#%%
+
+####################
+### MASTER SCRIPT TO PROCESS NEW DATA
+def processNewHOBOData():
+    '''Run this after retrieving new HOBO data from the field in order to
+        update files and regenerate plots.'''
+
+    # Download logger data from server
+    GSLMO_data = get_files_from_server()
+    
+    # Get new HOBO files from user
+    HOBOfiles, time_min, time_max = load_new_HOBO_files()
+    
+    # Get weather data
+    ws_resampled = load_weather_data(time_min, time_max)
+    
+    # Merge HOBO data with weather data and add to downloaded data
+    for loc in HOBOfiles:
+        combined_data = merge_HOBO_data(
+            loc, HOBOfiles[loc],
+            ws_resampled[['ws_air_pressure_kPa', 'ws_air_temp_C']])
+        merged_data = add_new_data(GSLMO_data['GSLMO ' + loc], combined_data)
+        # Save to locations
+        locations[loc]['HOBO'] = merged_data
+        merged_data.to_csv(os.getcwd()+ '/' + loc.replace(' ','')
+                           +'_combined.csv', index=False,
+                           columns=filelist_remote['GSLMO ' + loc]['datacols'])
+        
+    # Grab and save latest lake elevation data
+    # Find date of last validated elevation value
+    ev = GSLMO_data['Lake Elevation']
+    sdate_min = pd.Timestamp(ev[ev['10s']=='P'].iloc[0].loc['20d']).strftime(
+        '%Y-%m-%d')
+    sdate_max = time_max.strftime('%Y-%m-%d')
+    # Download new elevation data
+    elev_data = download_lake_elevation_data(sdate_min, sdate_max)
+    # Append to saved elevation data
+    elev_data = ev.append(elev_data)
+    elev_data.drop_duplicates(subset='20d', keep='last', inplace=True)
+    elev_data.to_csv(os.getcwd()+'/'+'LakeElevationSaltair.csv', index=False)
+    
+    # Build plots
+    buildBokehPlots(os.getcwd())
+
+    print('Woohoo! Processing complete. Upload files to the remote server.')
+
 
 ####################
 ### SCRIPTS TO GET AND PROCESS HOBO LOGGER DATA
@@ -448,8 +474,6 @@ def loadHOBOFiles():
         
     return directory, time_min, time_max
 
-# %%
-    ''' Test these! '''
     
 def get_files_from_server():
     '''  Loads in existing compiled files from the web server '''
@@ -458,7 +482,8 @@ def get_files_from_server():
         print('Downloading ' + file + ' data from remote server...')
         file_info = filelist_remote[file]
         GSLMO_data[file] = pd.read_csv(GSLMO_data_URL + file_info['filename'],
-                                       header = file_info['header'])
+                                       header = file_info['header'],
+                                       error_bad_lines=False)
         GSLMO_data[file].index = pd.to_datetime(
             GSLMO_data[file][file_info['timecol']])
     return GSLMO_data
@@ -498,53 +523,6 @@ def load_new_HOBO_files():
                 
     return HOBOfiles, time_min, time_max
 
-
-def get_format_convert_weather_station_data(time_min, time_max):
-    '''Gets weather station data from the Antelope Island weather station
-    for the date range that the HOBO data covers
-
-    Parameters
-    ----------
-    time_min : timestamp
-        Earliest timestamp for the logger data.
-    time_max : timestamp
-        Last timestamp for the logger data.
-
-    Returns
-    -------
-    combined_weather_data : pandas.DataFrame
-        Raw downloaded weather data.
-    ws_resampled : pandas.DataFrame
-        Processed and resampled weather data.
-
-    '''
-    
-    # Get weather station data for date range HOBO data covers
-    get_station_data_for_period(
-        time_min, time_max + pd.Timedelta(value = 1, unit = 'day'))
-    root=Tk()
-    combined_weather_data = combine_weather_files(
-        filedialog.askopenfilenames(
-            title = 'Select weather station data files'))
-    root.destroy()
-    combined_weather_data.sort_index(inplace = True)
-    combined_weather_data.rename(columns = dict(
-        zip(list(combined_weather_data.columns),
-            weather_station_download_columns)),
-        inplace = True)
-    
-    # Convert weather station data
-    combined_weather_data['ws_air_pressure_kPa'] = (
-        combined_weather_data['ws_abs_pressure_inHg']*3.386)
-    combined_weather_data['ws_air_temp_C'] = (
-        
-        (combined_weather_data['ws_temp_F']-32)*5/9)
-    # Resample to 15 minute intervals and rename columns
-    ws_resampled = combined_weather_data.resample(
-        '5T').fillna('nearest').resample('15T').mean()
-    
-    return combined_weather_data, ws_resampled
-                    
 
 def merge_HOBO_data(loc, file_set, ws_data):
     ''' Merge HOBO data at each site based on timestamp
@@ -588,25 +566,30 @@ def merge_HOBO_data(loc, file_set, ws_data):
     buttons = button_prefixes[loc]
     for button in list(buttons):
         if buttons[button] in button_files:
-            button_data = file_set[buttons[button]]
-            new_col_names = [column.replace('bttn',button)
-                             for column in button_data.columns]
-            button_data.rename(
-                columns = dict(zip(button_data.columns, new_col_names)),
-                inplace = True)
+            button_data = file_set[buttons[button]].copy()
+            new_col_names = [column.replace('bttn',button) for column in list(button_data.columns)]
+            button_data.rename(columns = dict(zip(button_data.columns, new_col_names)), inplace = True)
             combined_data = (
                 pd.merge_asof(combined_data,
                               button_data,
                               left_index = True, right_index = True,
                               tolerance = pd.Timedelta('15T')))
             data_cols.append(new_col_names[0])
+            
+    # Trim any NaN rows at start and end of DataFrame
+    idx = combined_data[data_cols].fillna(method='ffill').dropna(
+        how='all').index
+    res_idx = combined_data[data_cols].loc[idx].fillna(method='bfill').dropna(
+        how='all').index
+    combined_data = combined_data.loc[res_idx]
+    
     
     # Calculate depth
-    combined_data['dPressure'] = (
+    combined_data['dPressure_kPa'] = (
         combined_data['pndt_water_pressure_kPa'] -
         combined_data['ws_air_pressure_kPa'])
     combined_data['calc_water_depth_m'] = (
-        combined_data['dPressure'] * density[loc] / 
+        combined_data['dPressure_kPa'] * density[loc] / 
         ResearchModules.gravity_factor)
     
     # Ask user for manual water depth measurement
@@ -635,43 +618,31 @@ def merge_HOBO_data(loc, file_set, ws_data):
         
     return combined_data
 
-#%% IN PROGRESS
-def processNewHOBOData():
-    '''Run this after retrieving new HOBO data from the field in order to
-        update files and regenerate plots.'''
 
-    # Download logger data from server
-    GSLMO_data = get_files_from_server()
-    
-    # Get new HOBO files from user
-    HOBOfiles, time_min, time_max = load_new_HOBO_files()
-    
-    # Download and compile corresponding weather data
-    combined_weather_data, ws_resampled = (
-        get_format_convert_weather_station_data(time_min, time_max))
-    ''' TO DO
-    # Merge weather station data with downloaded data & save file
+def add_new_data(old_data, new_data):
     '''
-    
-    # Merge HOBO data with weather data
-    for loc in HOBOfiles:
-        combined_data = merge_HOBO_data(
-            HOBOfiles[loc], button_prefixes[loc],
-            ws_resampled[['ws_air_pressure_kPa', 'ws_air_temp_C']])
-        ''' TO DO
-        # Merge with downloaded data & save file
-        '''
-    ''' Final To Dos    
-    # Grab Saltair elevation data from last point with 'A' to present
-        https://waterdata.usgs.gov/ut/nwis/dv/?site_no=10010000&agency_cd=USGS&amp;referred_module=sw
-        https://waterdata.usgs.gov/ut/nwis/dv?cb_62614=on&format=rdb&site_no=10010000&referred_module=sw&period=&begin_date=2019-11-07&end_date=2020-07-14
-    # Re-build the plots
+    Adds new data to old data for site
+
+    Parameters
+    ----------
+    old_data : pandas.DataFrame
+        DataFrame containing the old data.
+    new_data : pandas.DataFrame
+        DataFrame containing the new data. Columns should match those in old data that should be overwritten.
+
+    Returns
+    -------
+    merged_data : pandas.DataFrame
+        DataFrame containing the merged data.
+
     '''
-    print('Woohoo! Processing complete. Upload files to the remote server.')
-         
+    new_data['datetime'] = new_data.index
+    merged_data = old_data.append(new_data)
+    merged_data.drop_duplicates(subset='datetime', keep='last', inplace=True)
+    return merged_data
+       
              
 
-#%%
 ####################
 ### WORKING SCRIPTS TO DOWNLOAD EXTERNAL DATA
 
@@ -706,9 +677,14 @@ def download_lake_elevation_data(sdate_min, sdate_max):
     # Load in website data
     elev_data = pd.read_csv(data_URL, sep = '\t', header = 28)
     
+    # Save timestamps as index and convert date format
+    elev_data['date'] = pd.to_datetime(elev_data['20d'])
+    elev_data['20d'] = elev_data['date'].dt.strftime('%Y-%m-%d')
+    elev_data.set_index('date', drop=True, inplace=True)
+    
     return elev_data
 
-#%%
+
 ####################
 ### WORKING SCRIPTS TO DOWNLOAD AND PROCESS WEATHER STATION DATA
 
@@ -771,17 +747,24 @@ def get_station_data(sdate_min, sdate_max):
         return True
     
     
-def combine_weather_files(file_list):
+def combine_weather_files():
     '''
-    Function combines all downloaded weather files into a single csv
+    Function gets and combines all downloaded weather files into a single csv
     '''
+    # Get list of files
+    weather_file_list, directory = ResearchModules.getFiles(
+        'Select weather station data files')
     # Load and combine all files
     combined_weather_data = pd.concat(
-        [pd.read_csv(file, header = 0, index_col = 0) for file in file_list])
+        [pd.read_csv(file, header = 0) for file in weather_file_list])
     # Delete replicate rows
-    combined_weather_data.drop_duplicates(inplace = True)
+    combined_weather_data.drop_duplicates(subset=['DateTime'], inplace = True)
+    # Replace index with timestamp and sort
+    combined_weather_data['DateTime'] = pd.to_datetime(
+        combined_weather_data['DateTime'])
+    combined_weather_data.set_index(['DateTime'], drop=True, inplace=True)
+    combined_weather_data.sort_index(inplace=True)
     # Find start and end date
-    combined_weather_data.index = pd.to_datetime(combined_weather_data.index)
     date_min = min(combined_weather_data.index).strftime('%Y-%m-%d').replace(
         '-','')
     date_max = max(combined_weather_data.index).strftime('%Y-%m-%d').replace(
@@ -789,8 +772,91 @@ def combine_weather_files(file_list):
     # Export as csv
     combined_weather_data.to_csv(date_min + '-' + date_max + '.csv')
     print('Combined weather files.')
-    return combined_weather_data
     
+    return combined_weather_data
+
+
+def load_weather_data(time_min, time_max):
+    '''Gets downloaded weather data from user if user already has weather
+    data downloaded somewhere'''
+    
+    # Ask user for data source
+    ws_data_source = input('Download remote weather station data or use'
+                           + ' local file? Type "remote" or "local"  > ')
+    
+    # If remote, try to download data
+    i = 0
+    max_retries = 5
+    if ws_data_source == 'remote':
+        for i in range(max_retries):
+            try:
+                get_station_data_for_period(
+                    time_min, time_max + pd.Timedelta(value=1, unit='day'))
+                combined_weather_data = combine_weather_files()
+                break
+            except subprocess.TimeoutExpired:
+                print('Trying again to connect to the weather station (Try '
+                      + str(i+1) + ')')
+                pass
+    
+    # If local or unable to download data, ask for file and trim to date range
+    if ws_data_source == 'local' or i == max_retries-1:
+        _, _, combined_weather_data = ResearchModules.fileGet(
+            'Select raw weather data file')
+    
+    # Convert the weather data file
+    combined_weather_data = combined_weather_data.astype(float)
+    combined_weather_data, ws_resampled = convert_weather_station_data(
+        combined_weather_data)
+    
+    return ws_resampled
+   
+
+def convert_weather_station_data(combined_weather_data):
+    '''
+    Converts raw combined weather station data units, renames columns, and
+    resamples to 15 minutes
+
+    Parameters
+    ----------
+    combined_weather_data : pandas.DataFrame
+        Weather data with index = timestamp and columns Temp (degF),
+        RelPressure(in), AbsPressure(in).
+
+    Returns
+    -------
+    combined_weather_data : pandas.DataFrame
+        Weather data with index = timestamp and columns .
+    ws_resampled : TYPE
+        DESCRIPTION.
+
+    '''
+    # Replace index with timestamp and sort
+    combined_weather_data['DateTime'] = pd.to_datetime(
+        combined_weather_data.index)
+    combined_weather_data.set_index(['DateTime'], drop=True, inplace=True)
+    combined_weather_data.sort_index(inplace=True)
+    
+    
+    # Rename weather station data columns
+    combined_weather_data.rename(
+        columns = dict(zip(list(
+            combined_weather_data.columns),
+            weather_station_download_columns)),
+        inplace = True)
+    
+    # Convert weather station data
+    combined_weather_data['ws_air_pressure_kPa'] = (
+        combined_weather_data['ws_abs_pressure_inHg']*3.386)
+    combined_weather_data['ws_air_temp_C'] = (        
+        (combined_weather_data['ws_temp_F']-32)*5/9)
+    
+    # Resample to 15 minute intervals and rename columns
+    ws_resampled = combined_weather_data.resample('5T').fillna(
+        'nearest').resample('15T').mean()
+    
+    return combined_weather_data, ws_resampled
+       
 
 def update_station_cache(sdate_min, sdate_max):
     """
@@ -825,7 +891,6 @@ def get_station_data_filename(date_min, date_max):
     return filename
 
 
-#%%
 ####################
 ### WORKING SCRIPTS TO PROCESS AND PLOT DATA
 ### ONCE IT HAS BEEN IMPORTED, COMBINED, AND CLEANED
@@ -848,7 +913,7 @@ def getPlotInfo(plot):
 def getLineProperties(plot, line):
     line_info = plotlist[plot][line]
     ds = locations[line_info['location']][line_info['filetype']]
-    time_data = list(ds['datetime'])
+    time_data = list(pd.to_datetime(ds['datetime']))
     y_data = list(pd.to_numeric(ds[line_info['column']], errors = 'coerce'))
     return line_info, time_data, y_data
 
@@ -979,6 +1044,12 @@ def buildBokehPlots(directory):
 # MAIN FUNCTION
 ####################
 if __name__ == '__main__': 
+    
+    # Run this script if new HOBO data needs to be added and plots updated
+    processNewHOBOData()
+    
+    #####
+    # Run these scripts if need to update plots from manually-updated files
     
     # Load HOBO files
     directory, time_min, time_max = loadHOBOFiles()
