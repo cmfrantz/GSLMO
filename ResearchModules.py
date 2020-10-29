@@ -18,6 +18,17 @@ gravity_factor = 9.80665
 
 # FUNCTIONS
 
+def getFiles(title, directory = os.getcwd(), file_type = [('CSV', '*.csv')]):
+    '''Gets list of files from user selection'''
+    root = Tk()
+    fileList = filedialog.askopenfilenames(initialdir=directory, title = title,
+                                        filetypes = file_type)
+    root.destroy()
+    dirPath = os.path.dirname(fileList[0])
+    
+    return fileList, dirPath
+
+
 def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
             file_type = 'csv', header_row = 0, index_col = 0):
     '''This script imports data from a file chosen with a user input GUI.
@@ -57,7 +68,7 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
         index_col = 0
         file_type = 'csv'
     if tabletype == 'HOBO_comb':
-        header_row = 1
+        header_row = 0
         index_col = 1
         file_type = 'csv'
     if tabletype == 'field':
