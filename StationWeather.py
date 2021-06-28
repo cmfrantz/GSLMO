@@ -1,13 +1,17 @@
 """
 DOWNLOAD AMBIENT STATION's WEATHER DATA
 
+Before using:
+    Replace AMBIENT_API_KEY and AMBIENT_APPLICATION_KEY
+    with valid keys for the station of interest.
+    See ambientweather.docs.apiary.io for instructions.
+
 Arguments:
     Start Date                              (%Y-%m-%d),
-    End Date                                (%Y-%m-%d),
-    API Key                                 (String)
+    End Date                                (%Y-%m-%d)
 
-Example in command line (note that the API key here is not valid):
-    python3 station_weather.py 2019-07-20 2019-07-21 35c8a41b05324137a0bc3d220d17c6182df7184953d148c4b8fc8cafe6e06192
+Example in command line:
+    python3 station_weather.py 2019-07-20 2019-07-21
 
 Dependencies Install:
     sudo apt-get install python3-pip python3-dev
@@ -34,8 +38,8 @@ from ambient_aprs.ambient_aprs import AmbientAPRS
 
 AMBIENT_ENDPOINT = 'https://api.weather.com/v2'
 # AMBIENT_ENDPOINT = 'https://api.ambientweather.net/v1'
-AMBIENT_API_KEY = '35c8a41b05324137a0bc3d220d17c6182df7184953d148c4b8fc8cafe6e06192'
-AMBIENT_APPLICATION_KEY = '6461626a535b439a93d828840b0a392aea18784125504f729e8e6e83b7dcaef4'
+AMBIENT_API_KEY = '123456keyvalue'
+AMBIENT_APPLICATION_KEY = '78901keyvalue'
 # CSV_FILES_PATH = 'weather-data/'
 OUTPUT_PATH = '.'
 DEBUG_MODE = True
@@ -145,16 +149,16 @@ def parse_args():
 
     parser.add_argument("lower")
     parser.add_argument("upper")
-    parser.add_argument("api_key")
 
     args = parser.parse_args()
     
     lower = int(datetime.strptime(args.lower, '%Y-%m-%d').timestamp())
     upper = int(datetime.strptime(args.upper, '%Y-%m-%d').timestamp())
 
-    return lower, upper, args.api_key
+    return lower, upper
 ### EndDef parse_args() ###
 
+#%%
 def main():
     # Time for process start
     process_started = datetime.now()
@@ -162,11 +166,9 @@ def main():
     #
     # Parse args and build params
     #
-    lower, upper, api_key = parse_args()
+    lower, upper = parse_args()
     # print ("Start Date:\t", lower)
     # print ("End Date:\t", upper)
-
-    AMBIENT_API_KEY = api_key
 
     #
     # Get station devices
@@ -197,7 +199,7 @@ def main():
     # amb_debug("=================================================")
     # amb_debug("               Get Station Data")
     # amb_debug("=================================================")
-    #%%
+
     print ("Get Station Data ...")
     total = []
     end_date = upper
@@ -223,7 +225,6 @@ def main():
     # )
     # weather_data = aprs.get_weather_data()
 
-    #%%
     # Process CSV files
     #
     # amb_debug("")
