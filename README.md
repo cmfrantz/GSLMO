@@ -5,11 +5,12 @@ by Carie Frantz cariefrantz@weber.edu
 ## List of scripts
 <table>
 <tr><th>Script</th><th>Description</th><th>Data files used</th><th>Other requirements</th></tr>
-<tr><td>DataProcessing.py</td><td>Work in progress! Master data processing script. Builds HTML pages of static and bokeh interactive plots for GSLMO website updating. Updates web files with new logger data. Right now it only plots HOBO data.</td><td>Files on faculty page: SiteA_combined.csv, SiteB_combined.csv, LakeElevationSaltair.csv, plus raw offloaded HOBO csv files</td><td></td></tr>
+<tr><td>DataProcessing.py</td><td>Master data processing script. Builds HTML pages of static and bokeh interactive plots for GSLMO website updating. Updates web files with new logger data. Right now it only plots HOBO data.</td><td>Files on faculty page: SiteA_combined.csv, SiteB_combined.csv, LakeElevationSaltair.csv, plus raw offloaded HOBO csv files</td><td>StationWeather.py code must be edited to add API keys before using this script.</td></tr>
 <tr><td>DensityDiff.py</td><td>Determines the relative difference that different water density assumptions make on the calculated lake depth from HOBO logger water pressure data and weather station air pressure data.</td><td>HOBO_SiteA.csv, HOBO_SiteB.csv</td><td></td></tr>
 <tr><td>fanDiagram_2.6.py</td><td>Builds fan diagrams with process arrows from PHREEQC saturation calculations.</td><td>PHREEQC-Out.csv</td><td></td></tr>
 <tr><td>fanDiagram_pH-T-points.py</td><td>Plots fan diagrams for all available minerals from PHREEQC saturation calculations. Overlays measured pH and T points from the field.</td><td>PHREEQC-Out.csv, GSL_FieldData.csv</td><td></td></tr>
 <tr><td>StationWeather.py</td><td>Downloads weather station data from remote weather station. Requires valid API key for remote weather station to work, the version in this code is intentionally invalid for security purposes. Requires additional dependencies not listed below.</td><td></td><td>Weather station API key</td></tr>
+<tr><td>WUScraper.py</td><td>Scrapes the Weather Underground website for a personal weather station to download daily data for a date range.</td><td></td><td>This script worked with wunderground.com PWS page formatting on 6/30/2021. Any changes to the page HTML may break this script.</td></tr>
 </table>
 
 ## Shared scripts
@@ -23,6 +24,7 @@ The following scripts are called by several of the main scripts listed above. Do
 ## Setting up
 The code for this project requires the following list of packages in order to run.
 <ul>
+<li>beautifulsoup4</li>
 <li>bokeh</li>
 <li>datetime</li>
 <li>math</li>
@@ -31,8 +33,10 @@ The code for this project requires the following list of packages in order to ru
 <li>os</li>
 <li>pandas</li>
 <li>progress</li>
+<li>requests</li>
 <li>subprocess</li>
 <li>sys</li>
+<li>time</li>
 <li>tkinter</li>
 </ul>
 
