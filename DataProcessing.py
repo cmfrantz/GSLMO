@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 __author__ = 'Carie Frantz'
 __email__ = 'cariefrantz@weber.edu'
-"""Title
+"""DataProcessing
 Created on Mon Jun 29 15:45:09 2020
 @author: cariefrantz
 @project: GSLMO
@@ -121,7 +121,7 @@ filelist_remote = {
         },
     'Lake Elevation'    : {
         'filename'  : 'LakeElevationSaltair.csv',
-        'header'    : 29,
+        'header'    : 0,
         'timecol'   : '20d',
         'datacols'  : ['source','site','date','elevation_ft','validated']
         }
@@ -171,6 +171,8 @@ density = {
     'Site A'    : 1.08,
     'Site B'    : 1.09
     }
+
+date_fmt = '%Y-%m-%d'
 
 
 
@@ -372,11 +374,29 @@ def processNewHOBOData():
     elev_data = ev.append(elev_data)
     elev_data.drop_duplicates(subset='20d', keep='last', inplace=True)
     elev_data.to_csv(os.getcwd()+'/'+'LakeElevationSaltair.csv', index=False)
-    
+      
     # Build plots
+    print('Data compiled. Building website with updated plots.')
     buildBokehPlots(os.getcwd())
 
-    print('Woohoo! Processing complete. Upload files to the remote server.')
+    print(
+        '''
+        **************************************
+        *     WOOHOO! Processing complete.   *
+        **************************************
+                 *''*            *''*
+         *''*   *_\/_*   *''*   *_\/_*   *''*
+        *_\/_*  * /\ *  *_\/_*  * /\ *  *_\/_*
+        * /\ *   *''*   * /\ *   *''*   * /\ *
+         *''*      .     *''*     .      *''*
+           .        .     .      .        .
+            .        .   .      .        .
+        
+        **************************************
+        *  You should now upload the files   *
+        *  generated to the remote server.   *
+        **************************************
+        ''')
 
 
 ####################
@@ -403,17 +423,18 @@ def trim_HOBO(data, logger_type):
     
     # Trim logger data
     if logger_type == 'pendant':
-        cols_log = list(data.columns)[3:]
+        # cols_log = list(data.columns)[3:]
         # Delete anything before and after 'Logged'
-        toprow = list(data[data[cols_log[0]] == 'Logged'].index)[0] + 1
-        botrow = list(data[data[cols_log[1]] == 'Logged'].index)[0]
+        # toprow = list(data[data[cols_log[0]] == 'Logged'].index)[0] + 1
+        # botrow = list(data[data[cols_log[1]] == 'Logged'].index)[0]
+        # Remove rows containing 'Logged'
+        data = data[~data.eq('Logged').any(1)]
         # Reindex with timestamp
         data.set_index(col_list[0], inplace = True)
         col_list = list(data.columns)
     
-    elif logger_type == 'button':
-        toprow = 0
-        botrow = len(data)
+    toprow = 0
+    botrow = len(data)
         
     # Rename columns
     cols_data = HOBO_data_col_names[logger_type]
@@ -441,14 +462,14 @@ def find_valid_data_by_temp(data, cols_data, row_start, row_end,
     for row in range(row_start + 1, row_start + lim_checkrows):
         if abs(data.iloc[row][temp_col_name] 
                - data.iloc[row-1][temp_col_name]) >= lim_dTemp:
-            toprow = row
+            row_start = row
     # Delete any bottom lines above a T change >= lim_dt
     for row in np.arange(row_end-1, row_end-lim_checkrows-1, -1):
         if abs(data.iloc[row][temp_col_name]
                - data.iloc[row-1][temp_col_name]) >= lim_dTemp:
-            botrow = row
+            row_end = row
     # Trim
-    return data.iloc[np.arange(toprow, botrow)][cols_data].copy()      
+    return data.iloc[np.arange(row_start, row_end)][cols_data].copy()      
     
 
 def loadHOBOFiles():
@@ -509,6 +530,7 @@ def load_new_HOBO_files():
     time_max = ''
     for loc in HOBOfiles:
         for file in HOBOfiles[loc]:
+            print('Processing ' + loc + ' ' + file + '...')
             # Trim and format the data
             data = HOBOfiles[loc][file].copy()
             if 'pendant' in file: data = trim_HOBO(data, 'pendant')
@@ -675,11 +697,11 @@ def download_lake_elevation_data(sdate_min, sdate_max):
                  "&end_date=" + sdate_max)
     
     # Load in website data
-    elev_data = pd.read_csv(data_URL, sep = '\t', header = 28)
+    elev_data = pd.read_csv(data_URL, sep = '\t', header = 29)
     
     # Save timestamps as index and convert date format
     elev_data['date'] = pd.to_datetime(elev_data['20d'])
-    elev_data['20d'] = elev_data['date'].dt.strftime('%Y-%m-%d')
+    elev_data['20d'] = elev_data['date'].dt.strftime(date_fmt)
     elev_data.set_index('date', drop=True, inplace=True)
     
     return elev_data
@@ -698,16 +720,26 @@ def get_station_data_for_period(date_min, date_max):
     delta = pd.DateOffset(days = lim_dDays)
     date_curr = date_min  # Start date
     while date_curr < date_max:
-        sdate_min = date_curr.strftime('%Y-%m-%d')
+        sdate_min = date_curr.strftime(date_fmt)
         # Upper date limit
         if date_curr + delta > date_max:
-            sdate_max = date_max.strftime('%Y-%m-%d')
+            sdate_max = date_max.strftime(date_fmt)
         else:
-            sdate_max = (date_curr + delta).strftime('%Y-%m-%d')
-        print('Getting data for %s %s' % (sdate_min, sdate_max), end=' ')
-        # Try as many times as is needed to obtain the data
-        while not get_station_data(sdate_min, sdate_max):
-            print('\nTrying again...', end=' ')
+            sdate_max = (date_curr + delta).strftime(date_fmt)
+        
+        # Try the whole date range first
+        allowed_tries = 2
+        downloaded = attempt_ws_download(sdate_min, sdate_max, allowed_tries)
+        
+        # If the download doesn't work for the whole range, try downloading
+        # one day at a time
+        if not downloaded:
+            trydate = date_curr
+            for date in range(lim_dDays):
+                trydate = date_curr + pd.DateOffset(days = date)
+                attempt_ws_download(
+                    trydate.strftime(date_fmt),
+                    (trydate+pd.DateOffset(days=1)).strftime(date_fmt), 1)            
         # Updating the cache
         update_station_cache(sdate_min, sdate_max)
         # Removing temporary files
@@ -716,35 +748,65 @@ def get_station_data_for_period(date_min, date_max):
         # os.remove(filename.replace('.csv', '.txt'))
         # To get the next segment
         date_curr += delta
-        print('... done.')
         
 
-def get_station_data(sdate_min, sdate_max):
+def attempt_ws_download(sdate_min, sdate_max, allowed_tries=3):
+    '''
+    Attempts to download weather station data from the range specified,
+    quits after a max number of allowed tries.
+    '''
+    print(
+        '\nDownloading data for %s to %s...' % (sdate_min, sdate_max),
+        end=' ')
+    downloaded = False
+    for attempt in range(allowed_tries):
+        downloaded = get_station_data(sdate_min, sdate_max)
+        if downloaded:
+            print('  Download successful.')
+            break
+        else:
+            print('  Trying again (' + str(attempt+1)
+                  + '/' + str(allowed_tries) + ')...', end=' ')
+    if not downloaded:
+        print('  Download for range failed.')
+    return downloaded
+        
+
+def get_station_data(sdate_min, sdate_max, timeout=60):
     '''
     This function runs the external script station_weather.
     Returns true if the data is obtained.
-    Data is stored in an local file.
+    Data is stored as a csv file in the working directory.
     '''
-    
-    # Run station_weather.py
-    ret = subprocess.run(' '.join(['python', 'StationWeather.py',
-                                  sdate_min, sdate_max, AMBIENT_API_KEY]),
-                         capture_output=True, timeout=60) 
-    # To do: if the subprocess times out, figure out where it stopped and
-    # restart at a different date/time
-    if ret.returncode != 0:
-        # Program execution returns a invalid code
-        print('Error: station weather script execution failed')
-        print(ret.stdout)
-        sys.exit()
-    filename = get_station_data_filename(sdate_min, sdate_max)
-    data = pd.read_csv(filename)
-    if len(data) == 0:
-        # Sometimes API requests does not produce any data
-        # Print('Error: weather API is not providing data')
-        return False
+    success = False
+    # Try to run station_weather.py
+    try:
+        ret = subprocess.run(
+            ' '.join(['python', 'StationWeather.py', sdate_min, sdate_max]),
+            capture_output=True, timeout=timeout)
+    # If the subprocess times out or gives another error, quit
+    except:
+        success = False
+    # If the subprocess runs, determine whether or not it returned good data
     else:
-        return True
+        if ret.returncode != 0:
+            # Program execution returns a invalid code
+            print('Error: station weather script execution failed')
+            print(ret.stdout)
+            sys.exit()
+        filename = get_station_data_filename(sdate_min, sdate_max)
+        data = pd.read_csv(filename)
+        if len(data) == 0:
+            # Sometimes API requests does not produce any data.
+            # If this happens, delete the file.
+            os.remove(filename)
+            success = False
+        else:
+            success = True
+    return success
+
+    
+    
     
     
 def combine_weather_files():
@@ -765,9 +827,9 @@ def combine_weather_files():
     combined_weather_data.set_index(['DateTime'], drop=True, inplace=True)
     combined_weather_data.sort_index(inplace=True)
     # Find start and end date
-    date_min = min(combined_weather_data.index).strftime('%Y-%m-%d').replace(
+    date_min = min(combined_weather_data.index).strftime(date_fmt).replace(
         '-','')
-    date_max = max(combined_weather_data.index).strftime('%Y-%m-%d').replace(
+    date_max = max(combined_weather_data.index).strftime(date_fmt).replace(
         '-','')
     # Export as csv
     combined_weather_data.to_csv(date_min + '-' + date_max + '.csv')
@@ -912,6 +974,7 @@ def getPlotInfo(plot):
     
 def getLineProperties(plot, line):
     line_info = plotlist[plot][line]
+    # Data is being stored somewhere else... where?
     ds = locations[line_info['location']][line_info['filetype']]
     time_data = list(pd.to_datetime(ds['datetime']))
     y_data = list(pd.to_numeric(ds[line_info['column']], errors = 'coerce'))
@@ -984,6 +1047,7 @@ def buildBokehPlots(directory):
     figures = []
     
     for plot in plotlist:
+        print('\nBuilding ' + plot + ' plot...')
         lines, measlist = getPlotInfo(plot)
         
         # Build the bokeh figure
@@ -1045,6 +1109,12 @@ def buildBokehPlots(directory):
 ####################
 if __name__ == '__main__': 
     
+    #####
+    # Troubleshooting steps
+    
+    
+    
+    #####
     # Run this script if new HOBO data needs to be added and plots updated
     processNewHOBOData()
     
@@ -1052,7 +1122,9 @@ if __name__ == '__main__':
     # Run these scripts if need to update plots from manually-updated files
     
     # Load HOBO files
-    directory, time_min, time_max = loadHOBOFiles()
+    # directory, time_min, time_max = loadHOBOFiles()
+    
+    '''These below are now broken.
 
     # Build raw data plots and save HTML file
     print('Building basic (static) plots...')
@@ -1065,4 +1137,5 @@ if __name__ == '__main__':
     # Tell user to upload everything
     print('Processing complete! Remember to upload the shiny new files.')
 
+    '''
        
