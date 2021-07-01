@@ -48,33 +48,51 @@ def in_to_mm(inches):
 
 # Measurement map
 measlist = {
-    'Temperature (F)'       : {
+    'Temperature'   : {
         'convert'   : f_to_c,
-        'title'     : 'Temperature (C)'
+        'title'     : 'Temperature',
+        'unit'      : 'C'
         },
-    'Humidity (%)'          : True,
-    'Speed (mph)'           : {
+    'Humidity'      : {
+        'convert'   : False,
+        'title'     : 'Humidity',
+        'unit'      : '%'
+        },
+    'Speed'         : {
         'convert'   : mph_to_mps,
-        'title'     : 'Speed (mps)'
+        'title'     : 'Wind Speed',
+        'unit'      : 'mps'
         },
-    'Gust (mph)'            : {
+    'Gust'          : {
         'convert'   : mph_to_mps,
-        'title'     : 'Gust (mps)'
+        'title'     : 'Wind Gust',
+        'unit'      : 'mps'
         },
-    'Pressure (in)'         : {
+    'Pressure'      : {
         'convert'   : in_to_mm,
-        'title'     : 'Pressure (mm)'
+        'title'     : 'Pressure',
+        'unit'      : 'mm'
         },
-    'Precip. Rate. (in)'    : {
+    'Precip. Rate.' : {
         'convert'   : in_to_mm,
-        'title'     : 'Precip. Rate (mm)'
+        'title'     : 'Precip. Rate',
+        'unit'      : 'mm'
         },
-    'Precip. Accum. (in)'   : {
+    'Precip. Accum.': {
         'convert'   : in_to_mm,
-        'title'     : 'Precip. Accum. (mm)'
+        'title'     : 'Precip. Accum.',
+        'unit'      : 'mm'
         },
-    'UV'                    : True,
-    'Solar'                 : True
+    'UV'            : {
+        'convert'   : False,
+        'title'     : 'UV',
+        'unit'      : 'W/m^2'
+        },
+    'Solar'         : {
+        'convert'   : False,
+        'title'     : 'UV',
+        'unit'      : 'W/m^2'
+        }
     }
 
 
@@ -94,15 +112,21 @@ if __name__ == '__main__':
         station_name=os.path.splitext(file.rsplit('wu_')[1])[0]
         print('Loading Station ' + station_name + ' data file...')
         data = pd.read_csv(file, sep = ',', header = 0)
+        # Determine which measurements are present
+        columns = list(data.columns)
+        colmap = {}
+        for meas in measlist:
+            col = [idx for idx, s in enumerate(columns) if meas in s]
+            colmap[columns[col[0]]] = meas
+        data.rename(columns = colmap, inplace=True)
         # Clean up the data
         data['Solar'] = data['Solar'].str.replace(' w/m�','')
         # Convert measurement units
         data_converted=pd.DataFrame()
         for measurement in measlist:
             converted = pd.to_numeric(data[measurement], errors='coerce')
-            if measlist[measurement] != True:
+            if measlist[measurement]['convert'] != False:
                 converted = measlist[measurement]['convert'](converted)
-                measurement = measlist[measurement]['title']
             data_converted[measurement] = converted
         # Convert time
         data_converted['Time'] = pd.to_datetime(data['Time'], format='%Y-%m-%d %I:%M %p')
@@ -123,24 +147,19 @@ if __name__ == '__main__':
     colors = viridis(len(stationdata))
     
     for measurement in measlist:
-        
-        # Determine the plot title
-        if measlist[measurement] == True:
-            title = measurement
-        else:
-            title = measlist[measurement]['title']
             
         # Build the bokeh figure for each measurement
         print('Building ' + measurement + ' plot...')
             
         # Create the figure
-        fig = figure(plot_height = 500, plot_width = 1000, min_border=0,
-                     tools = toolset, x_axis_type = 'datetime', title = title)
+        fig = figure(plot_height = 500, plot_width = 1000, tools = toolset,
+                     x_axis_type = 'datetime',
+                     title = measlist[measurement]['title'])
         
         # Gather and plot the raw data for each series
         for i,station in enumerate(stationdata):
             # Get the data for the station
-            sdata = stationdata[station][['Time',title]].copy()
+            sdata = stationdata[station][['Time',measurement]].copy()
             sdata.set_index('Time', inplace=True)
             sdata = sdata[~sdata.index.duplicated()]
             # Generate smoothed hourly data
@@ -148,7 +167,7 @@ if __name__ == '__main__':
                 'index', limit = 20, limit_area = 'inside').resample(
                     'h').asfreq().dropna()
             # Find daily min/max values
-            daily_mm = sdata.resample('D')[title].agg(['min','max'])        
+            daily_mm = sdata.resample('D')[measurement].agg(['min','max'])        
             
             # Format the data for bokeh glyph render (new)
             groups = ResearchModules.nansplit(daily_mm)
@@ -164,7 +183,9 @@ if __name__ == '__main__':
             
         # Label axes and title
         fig.xaxis.axis_label = 'Date'
-        fig.yaxis.axis_label = title
+        fig.yaxis.axis_label = (
+            measlist[measurement]['title']
+            + ' (' + measlist[measurement]['unit'] + ')')
         
         # Configure legend
         fig.legend.location = 'top_left'

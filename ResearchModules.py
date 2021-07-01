@@ -15,6 +15,17 @@ import math
 # GLOBAL VARIABLES
 gravity_factor = 9.80665
 
+GSLMO_html_head = '''
+<h1>Great Salt Lake Microbialite Observatory</h1>
+<h2>Weber State University College of Science</h2>
+
+<p>Lead investigator: Dr. Carie Frantz, Department of Earth and Environmental 
+Sciences, <a href="mailto:cariefrantz@weber.edu">cariefrantz@weber.edu</a></p>
+<p>This project is funded by the National Science Foundation,
+<a href="https://www.nsf.gov/awardsearch/showAward?AWD_ID=1801760">
+Award #1801760</a></p>
+'''
+
 
 # FUNCTIONS
 
