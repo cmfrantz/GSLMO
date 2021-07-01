@@ -220,3 +220,15 @@ def makeLogspace(**kwargs):
     
     print('minval: '+str(minval)+'  maxval: '+str(maxval)+'  n: '+str(n))
     return np.logspace(minval, maxval, num = n, endpoint = True, base = 10)
+
+
+
+def nansplit(value_list):
+    '''Splits list at nans and returns list of nested lists (groups)'''
+    # Split off any nan-containing rows
+    groups = np.split(value_list, np.where(value_list.isnull().any(axis=1))[0])
+    # Remove NaN entries and delete
+    groups = [gr[~gr.isnull().any(axis=1)] for gr in groups if not
+              isinstance(gr, np.ndarray)]
+    groups = [gr for gr in groups if not gr.empty]
+    return groups

@@ -59,12 +59,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 # TO DO
 ####################
 '''
+DO
+    compare the weather data at 3 stations and see what is useable
+    compile weather data and replace data in existing files, re-generate plots
+
 FIX
     trimPendantData needs to check for any wacky values mid-log
+    use WUScraper instead of station script to load weather data
     
 ADD
     lake elevation data to depth plots
-    Automate field notes and core notes data entry
+    field data plots
 
 '''
 
@@ -287,16 +292,7 @@ plt_pfx = 'GSL_plots_'
 toolset = 'xwheel_zoom, pan, box_zoom, reset, save'
 
 td_style = ' style = "padding: 5px"'
-bokeh_head = '''
-<h1>Great Salt Lake Microbialite Observatory</h1>
-<h2>Weber State University College of Science</h2>
-
-<p>Lead investigator: Dr. Carie Frantz, Department of Earth and Environmental 
-Sciences, <a href="mailto:cariefrantz@weber.edu">cariefrantz@weber.edu</a></p>
-<p>This project is funded by the National Science Foundation,
-<a href="https://www.nsf.gov/awardsearch/showAward?AWD_ID=1801760">
-Award #1801760</a></p>
-
+bokeh_head = ResearchModules.GSLMO_html_head + '''
 <h2>Instrument Sites</h2>
 <p>Both GSLMO instrument sites are located on the Northern shore of Antelope
    Island and are accessed and operated under permits from Antelope Island
@@ -1030,18 +1026,6 @@ def buildStaticPlots(directory, time_min, time_max):
         file.write(pageHTML)  
 
 
-
-def nansplit(value_list):
-    '''Splits list at nans and returns list of nested lists (groups)'''
-    # Split off any nan-containing rows
-    groups = np.split(value_list, np.where(value_list.isnull().any(axis=1))[0])
-    # Remove NaN entries and delete
-    groups = [gr[~gr.isnull().any(axis=1)] for gr in groups if not
-              isinstance(gr, np.ndarray)]
-    groups = [gr for gr in groups if not gr.empty]
-    return groups
-
-
 def buildBokehPlots(directory):
     # Set up the bokeh page
     figures = []
@@ -1070,7 +1054,7 @@ def buildBokehPlots(directory):
             daily_mm = y_df.resample('D')['y'].agg(['min','max'])        
             
             # Format the data for bokeh glyph render (new)
-            groups = nansplit(daily_mm)
+            groups = ResearchModules.nansplit(daily_mm)
             for group in groups:
                 # Format x,y coordinates for each patch
                 x = np.hstack((group.index, np.flip(group.index)))
