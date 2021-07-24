@@ -27,12 +27,33 @@ from pandas.tseries.offsets import DateOffset
 ####################
 # VARIABLES
 ####################
-directory = os.getcwd()
+directory = os.getcwd()     # Directory for saving the page
 
+# Data parsing
+datefmt = '%Y-%m-%d'
+col_date = '20d'            # Header row value for the date column in dataset
+col_elev = '14n'            # Header row value for the elevation colum
+col_dtype = '10s'           # Header row value for the data type/status
+
+# Data analysis
+hist_first = '1847-10-18'   # Date of first measurement in the dataset
+hist_start = '1900'         # Designate start of 'historical' period
+hist_end = '2000'           # Designate end of 'historical' period
+hist_range = hist_start + '-' + hist_end
+
+# Plot formatting
 plt_ht = 5
 plt_w = 10
-toolset = 'xwheel_zoom, pan, box_zoom, reset, save'
+mkrsize = 5
+linew = 4
+alpha = 0.5
+toolset = 'box_zoom, xwheel_zoom, pan, reset, save'
+active_drag = 'box_zoom'
+active_inspect = 'auto'
+active_scroll = 'xwheel_zoom'
+active_tap = 'auto'
 
+# HTML page formatting
 HTML_head = '''
 <h1>Great Salt Lake Elevation at Saltair (South Arm)</h1>
 <p>Daily mean lake water surface elevation above ngvd 1929 measured at
@@ -58,7 +79,7 @@ HTML_newmin_end = '''
 <li>e &emsp; Value has been estimated.</li>
 </ul>
 </p>
-<p><b>Use the toolbars to the right of the plot to scroll/zoom and view
+<p><b>Use the toolbars to the right of the plot to scroll/zoom and display
 daily mean values.</b></p>
 <p>Plot last updated 
 '''
@@ -70,71 +91,89 @@ daily mean values.</b></p>
 
 print('\nBuilding historical lake elevation plot...')
 
-# Load the elevation data for the entire record
+# Download the elevation data for the entire record
 elev_data = ResearchModules.download_lake_elevation_data(
-    '1847-10-18', date.today().strftime('%Y-%m-%d'))
-source = ColumnDataSource(data={
-    'dt'    : elev_data.index,
-    'date'  : elev_data['20d'],
-    'elev'  : elev_data['14n'],
-    'dtype'    : elev_data['10s']
-    })
+    hist_first, date.today().strftime(datefmt))
+
+#%%
 
 # Calculate historical min/max
-hist_min = elev_data['1900':'2000']['14n'].min(skipna=True)
-hist_max = elev_data['1900':'2000']['14n'].max(skipna=True)
+hist_min = elev_data[hist_start : hist_end][col_elev].min(skipna=True)
+hist_max = elev_data[hist_start : hist_end][col_elev].max(skipna=True)
 
 # Find min & date
-elev_min = elev_data['14n'].min(skipna=True)
-elev_min_date = elev_data[elev_data['14n']==elev_min]['20d'][0]
+elev_min = elev_data[col_elev].min(skipna=True)
+elev_min_date = elev_data[elev_data[col_elev]==elev_min][col_date][0]
 
 # Update HTML header
 HTML_head = (HTML_head + HTML_newmin_head + str(elev_min) + HTML_newmin_mid
              + elev_min_date + HTML_newmin_end)
 
 # Interpolate & calculate time-weighted average
-interp = elev_data['14n'].resample('D').mean().interpolate()
-hist_mean = interp['1900':'2000'].mean()
+interp = elev_data[col_elev].resample('D').mean().interpolate()
+hist_mean = interp[hist_start : hist_end].mean()
 interp = interp.resample('W').mean()
 interp.index = interp.index + DateOffset(days=-3)
 
+# Prep the data
+source = ColumnDataSource(data={
+    'dt'      : elev_data.index,
+    'date'    : elev_data[col_date],
+    'elev'    : elev_data[col_elev],
+    'dtype'   : elev_data[col_dtype]
+    })
+
 # Build the bokeh figure
 fig = figure(plot_height = plt_ht*100, plot_width = plt_w*100,
-             tools = toolset, x_axis_type = 'datetime',
+             tools = toolset,
+             x_axis_type = 'datetime',
+             active_drag = active_drag, active_scroll=active_scroll,
+             active_tap = active_tap,
              title = 'Great Salt Lake elevation measured at Saltair')
 fig.xaxis.axis_label = 'Date'
 fig.yaxis.axis_label = 'Lake elevation (ft)'
 
+# Add the historical min, average, max lines
+fig.line(
+    [elev_data.index.min(), elev_data.index.max()], [hist_max, hist_max],
+    color='steelblue', line_width=linew, alpha=alpha,
+    legend_label = hist_range + ' maximum')
+fig.line(
+    [elev_data.index.min(), elev_data.index.max()], [hist_mean, hist_mean],
+    color='grey', line_width=linew, alpha=alpha,
+    legend_label = hist_range + ' mean')
+fig.line(
+    [elev_data.index.min(), elev_data.index.max()], [hist_min, hist_min],
+    color='crimson', line_width=linew, alpha=alpha,
+    legend_label = hist_range + ' minimum')
+
 # Add the station measurements
 meas = fig.circle(
-    x='dt', y='elev', source=source, size=2, color='lightgray',
+    x='dt', y='elev', source=source, size=mkrsize, color='lightgray',
     legend_label = 'station measurements'
     )
-fig.add_tools(HoverTool(
+
+# Add the interpolated weekly mean
+fig.line(
+    interp.index, interp.values, color='midnightblue', alpha=alpha,
+    legend_label='interpolated weekly mean')
+
+# Configure the toolbar
+hover = HoverTool(
     tooltips=[
         ('date',        '@date'         ),
         ('elevation',   '@elev{0.0}'    ),
-        ('data type', '@dtype'       )
+        ('data type',    '@dtype'       )
         ],
     mode='vline', renderers = [meas]
-    ))
+    )
 
-# Add the historical min, average, max lines
-fig.line(
-    interp.index, interp.values, color='midnightblue', alpha=0.5,
-    legend_label='interpolated weekly mean')
-fig.line(
-    [elev_data.index.min(), elev_data.index.max()], [hist_max, hist_max],
-    color='steelblue', legend_label='1900-2000 maximum')
-fig.line(
-    [elev_data.index.min(), elev_data.index.max()], [hist_mean, hist_mean],
-    color='grey', legend_label='1900-2000 mean')
-fig.line(
-    [elev_data.index.min(), elev_data.index.max()], [hist_min, hist_min],
-    color='crimson', legend_label='1900-2000 minimum')
+fig.add_tools(hover)
+fig.toolbar.active_inspect = None
+
 #show(fig)
 
 # Save HTML page
-GSL_elev_head = HTML_head + date.today().strftime('%Y-%m-%d') + '</p>'
+GSL_elev_head = HTML_head + date.today().strftime(datefmt) + '</p>'
 output_file(directory + '\\GSL_elevation.html')
 save(column([Div(text = GSL_elev_head),fig]))
