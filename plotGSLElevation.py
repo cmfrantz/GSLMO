@@ -36,7 +36,9 @@ col_elev = '14n'            # Header row value for the elevation colum
 col_dtype = '10s'           # Header row value for the data type/status
 
 # Data analysis
-hist_first = '1847-10-18'   # Date of first measurement in the dataset
+rec_first = '1847-10-18'   # Date of first measurement in the dataset
+pi_start = '1850'           # Designate start of 'pre-industrial' period
+pi_end = '1900'             # Designate end of 'pre-industrial' period
 hist_start = '1900'         # Designate start of 'historical' period
 hist_end = '2000'           # Designate end of 'historical' period
 hist_range = hist_start + '-' + hist_end
@@ -54,7 +56,7 @@ active_scroll = 'xwheel_zoom'
 active_tap = 'auto'
 
 # HTML page formatting
-HTML_head = '''
+HTML_head = ('''
 <h1>Great Salt Lake Elevation at Saltair (South Arm)</h1>
 <p>Daily mean lake water surface elevation above ngvd 1929 measured at
 Saltair Boat Harbor (South Arm)</p>
@@ -66,23 +68,29 @@ site_no=10010000">Site 10010000</a>
 <a href="https://www.weber.edu/ees">Department of Earth and Environmental 
 Sciences</a>, Weber State University, using Python script
 <a href="https://github.com/cmfrantz/GSL">plotGSLElevation.py</a></p>
-'''
-HTML_newmin_head = '<h2>New minimum: '
-HTML_newmin_mid = ' ft, reached on '
-HTML_newmin_end = '''
 </h2>
-<p>Data type key:
-<ul>
-<li>A &emsp; Approved for publication -- Processing and review completed.
-</li>
-<li>P &emsp; Provisional data subject to revision.</li>
-<li>e &emsp; Value has been estimated.</li>
-</ul>
-</p>
-<p><b>Use the toolbars to the right of the plot to scroll/zoom and display
-daily mean values.</b></p>
-<p>Plot last updated 
-'''
+<p>Definitions: Pre-industrial is defined as '''
+ + pi_start + '–' + pi_end + '.'
+ + ' Historical is defined as '
+ + hist_start + '–' + hist_end + '.'
+ + '''
+ <p>Data type key (display using the Hover tool):
+ <ul>
+ <li>A &emsp; Approved for publication — Processing and review completed.
+ </li>
+ <li>P &emsp; Provisional data subject to revision.</li>
+ <li>e &emsp; Value has been estimated.</li>
+ </ul>
+ </p>
+''')
+HTML_newmin_head = '<h2>New minimum: '
+HTML_newmin_mid = ' ft reached on '
+HTML_newmin_end = '''
+    </h2>
+    <p><b>Use the toolbars to the right of the plot to scroll/zoom and display
+    daily mean values.</b></p>
+    <p>Plot last updated 
+    '''
 #%%
 
 ####################
@@ -93,7 +101,7 @@ print('\nBuilding historical lake elevation plot...')
 
 # Download the elevation data for the entire record
 elev_data = ResearchModules.download_lake_elevation_data(
-    hist_first, date.today().strftime(datefmt))
+    rec_first, date.today().strftime(datefmt))
 
 #%%
 
@@ -111,9 +119,12 @@ HTML_head = (HTML_head + HTML_newmin_head + str(elev_min) + HTML_newmin_mid
 
 # Interpolate & calculate time-weighted average
 interp = elev_data[col_elev].resample('D').mean().interpolate()
-hist_mean = interp[hist_start : hist_end].mean()
 interp = interp.resample('W').mean()
 interp.index = interp.index + DateOffset(days=-3)
+# Pre-industrial
+pi_mean = interp[pi_start : pi_end].mean()
+# Historical
+hist_mean = interp[hist_start : hist_end].mean()
 
 # Prep the data
 source = ColumnDataSource(data={
@@ -135,17 +146,21 @@ fig.yaxis.axis_label = 'Lake elevation (ft)'
 
 # Add the historical min, average, max lines
 fig.line(
-    [elev_data.index.min(), elev_data.index.max()], [hist_max, hist_max],
-    color='steelblue', line_width=linew, alpha=alpha,
-    legend_label = hist_range + ' maximum')
+    [elev_data.index.min(), elev_data.index.max()], [pi_mean, pi_mean],
+    color='lightgrey', line_width=linew, alpha=alpha,
+    legend_label = str(round(pi_mean,1)) + ' ft (pre-industrial mean)')
 fig.line(
     [elev_data.index.min(), elev_data.index.max()], [hist_mean, hist_mean],
     color='grey', line_width=linew, alpha=alpha,
-    legend_label = hist_range + ' mean')
+    legend_label = str(round(hist_mean,1)) + ' ft (historical mean)')
+fig.line(
+    [elev_data.index.min(), elev_data.index.max()], [hist_max, hist_max],
+    color='steelblue', line_width=linew, alpha=alpha,
+    legend_label = str(round(hist_max,1)) + ' ft (historical maximum)')
 fig.line(
     [elev_data.index.min(), elev_data.index.max()], [hist_min, hist_min],
     color='crimson', line_width=linew, alpha=alpha,
-    legend_label = hist_range + ' minimum')
+    legend_label = str(round(hist_min,1)) + ' ft (historical minimum)')
 
 # Add the station measurements
 meas = fig.circle(
