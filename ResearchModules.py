@@ -243,3 +243,42 @@ def nansplit(value_list):
               isinstance(gr, np.ndarray)]
     groups = [gr for gr in groups if not gr.empty]
     return groups
+
+
+def download_lake_elevation_data(sdate_min, sdate_max):
+    """
+    This function downloads lake elevation data at Saltair from the USGS
+    waterdata web interface
+
+    Parameters
+    ----------
+    sdate_min : string
+        Start date for data download in format 'YYYY-mm-dd'.
+        (use date_min.strftime('%Y-%m-%d') to format a timestamp)
+    sdate_max : string
+        End date for data download in format 'YYYY-mm-dd'.
+
+    Returns
+    -------
+    elev_data : pandas DataFrame containing five columns:
+        agency | site_no | datetime | elevation (ft) | Data qualification
+        (A = Approved for publication, P = Provisional)
+
+    """
+    site_no = 10010000 # Great Salt Lake at Saltair Boat Harbor, UT
+    
+    # Generate URL
+    data_URL = ("https://waterdata.usgs.gov/nwis/dv?cb_62614=on&format=rdb" +
+                 "&site_no=" + str(site_no) + "&referred_module=sw&period=" +
+                 "&begin_date=" + sdate_min +
+                 "&end_date=" + sdate_max)
+    
+    # Load in website data
+    elev_data = pd.read_csv(data_URL, sep = '\t', header = 31)
+    
+    # Save timestamps as index and convert date format
+    elev_data['date'] = pd.to_datetime(elev_data['20d'])
+    elev_data['20d'] = elev_data['date'].dt.strftime('%Y-%m-%d')
+    elev_data.set_index('date', drop=True, inplace=True)
+    
+    return elev_data

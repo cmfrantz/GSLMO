@@ -292,7 +292,7 @@ plt_pfx = 'GSL_plots_'
 toolset = 'xwheel_zoom, pan, box_zoom, reset, save'
 
 td_style = ' style = "padding: 5px"'
-bokeh_head = ResearchModules.GSLMO_html_head + '''
+GSLMO_head = ResearchModules.GSLMO_html_head + '''
 <h2>Instrument Sites</h2>
 <p>Both GSLMO instrument sites are located on the Northern shore of Antelope
    Island and are accessed and operated under permits from Antelope Island
@@ -324,7 +324,7 @@ bokeh_head = ResearchModules.GSLMO_html_head + '''
    Use the tools in the toolbar to the right of each plot to explore the data.
    Click legend items to turn plotted data on and off.</p>
 '''
-
+#%%
 
 ####################
 # FUNCTIONS
@@ -365,7 +365,8 @@ def processNewHOBOData():
         '%Y-%m-%d')
     sdate_max = time_max.strftime('%Y-%m-%d')
     # Download new elevation data
-    elev_data = download_lake_elevation_data(sdate_min, sdate_max)
+    elev_data = ResearchModules.download_lake_elevation_data(
+        sdate_min, sdate_max)
     # Append to saved elevation data
     elev_data = ev.append(elev_data)
     elev_data.drop_duplicates(subset='20d', keep='last', inplace=True)
@@ -659,49 +660,6 @@ def add_new_data(old_data, new_data):
     merged_data.drop_duplicates(subset='datetime', keep='last', inplace=True)
     return merged_data
        
-             
-
-####################
-### WORKING SCRIPTS TO DOWNLOAD EXTERNAL DATA
-
-def download_lake_elevation_data(sdate_min, sdate_max):
-    """
-    This function downloads lake elevation data at Saltair from the USGS
-    waterdata web interface
-
-    Parameters
-    ----------
-    sdate_min : string
-        Start date for data download in format 'YYYY-mm-dd'.
-        (use date_min.strftime('%Y-%m-%d') to format a timestamp)
-    sdate_max : string
-        End date for data download in format 'YYYY-mm-dd'.
-
-    Returns
-    -------
-    elev_data : pandas DataFrame containing five columns:
-        agency | site_no | datetime | elevation (ft) | Data qualification
-        (A = Approved for publication, P = Provisional)
-
-    """
-    site_no = 10010000 # Great Salt Lake at Saltair Boat Harbor, UT
-    
-    # Generate URL
-    data_URL = ("https://waterdata.usgs.gov/nwis/dv?cb_62614=on&format=rdb" +
-                 "&site_no=" + str(site_no) + "&referred_module=sw&period=" +
-                 "&begin_date=" + sdate_min +
-                 "&end_date=" + sdate_max)
-    
-    # Load in website data
-    elev_data = pd.read_csv(data_URL, sep = '\t', header = 29)
-    
-    # Save timestamps as index and convert date format
-    elev_data['date'] = pd.to_datetime(elev_data['20d'])
-    elev_data['20d'] = elev_data['date'].dt.strftime(date_fmt)
-    elev_data.set_index('date', drop=True, inplace=True)
-    
-    return elev_data
-
 
 ####################
 ### WORKING SCRIPTS TO DOWNLOAD AND PROCESS WEATHER STATION DATA
@@ -731,8 +689,8 @@ def get_station_data_for_period(date_min, date_max):
         # one day at a time
         if not downloaded:
             trydate = date_curr
-            for date in range(lim_dDays):
-                trydate = date_curr + pd.DateOffset(days = date)
+            for day in range(lim_dDays):
+                trydate = date_curr + pd.DateOffset(days = day)
                 attempt_ws_download(
                     trydate.strftime(date_fmt),
                     (trydate+pd.DateOffset(days=1)).strftime(date_fmt), 1)            
@@ -1027,6 +985,7 @@ def buildStaticPlots(directory, time_min, time_max):
 
 
 def buildBokehPlots(directory):
+    ''' Builds the HTML page of bokeh plots of logger data '''
     # Set up the bokeh page
     figures = []
     
@@ -1081,11 +1040,10 @@ def buildBokehPlots(directory):
         figures.append(fig)
     
     # Save HTML page
-    figures.insert(0, Div(text = bokeh_head))
+    figures.insert(0, Div(text = GSLMO_head))
     # show(column(figures))
     output_file(directory + '\\GSLMO_plots_bokeh.html')
     save(column(figures))
-        
 
 #%%
 ####################
