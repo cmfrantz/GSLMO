@@ -4,7 +4,7 @@ Created on Sat Jul 24 10:21:06 2021
 
 @author: cariefrantz
 
-Updates the HTML page of historical lake elevation at Saltair
+Updates the HTML page of historical lake elevation at Saltair from USGS data
 
 """
 
@@ -43,7 +43,8 @@ USGS Utah Water Science Center,
 site_no=10010000">Site 10010000</a>
 <br />Plot by Dr. Carie Frantz,
 <a href="https://www.weber.edu/ees">Department of Earth and Environmental 
-Sciences</a>, Weber State University</p>
+Sciences</a>, Weber State University, using Python script
+<a href="https://github.com/cmfrantz/GSL">plotGSLElevation.py</a></p>
 '''
 HTML_newmin_head = '<h2>New minimum: '
 HTML_newmin_mid = ' ft, reached on '
