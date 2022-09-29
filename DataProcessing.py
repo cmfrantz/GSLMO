@@ -77,6 +77,7 @@ ADD
 # IMPORTS
 ####################
 import ResearchModules
+import WUNDERScrape
 
 import os
 import sys
@@ -99,7 +100,7 @@ from bokeh.models import ColumnDataSource, Div
 ####################
 # DATA DOWNLOAD VARIABLES
 
-# URL of remote files
+# Remote file information
 GSLMO_data_URL = 'http://faculty.weber.edu/cariefrantz/GSL/data/'
 
 GSLMO_standard_data_cols = ['datetime','ws_air_temp_C','ws_air_pressure_kPa',
@@ -132,8 +133,14 @@ filelist_remote = {
         }
     }
 
-weather_station_download_columns = ['ws_temp_F', 'ws_rel_pressure_inHg',
+AISP_station_download_columns = ['ws_temp_F', 'ws_rel_pressure_inHg',
                                     'ws_abs_pressure_inHg']
+scraped_station_download_columns = ['Temperature (F)', 'Pressure (in)']
+
+ws_elevations = {
+    'KUTSYRAC22'    : 4380,
+    'KUTSYRAC27'    : 4249
+    }
 
 ####################
 # DATA IMPORT VARIABLES
@@ -612,14 +619,14 @@ def merge_HOBO_data(loc, file_set, ws_data):
         ResearchModules.gravity_factor)
     
     # Ask user for manual water depth measurement
-    meas_water_depth_in = input('Enter the manually-measured water depth'
-                               + ' (in inches) at ' + loc + '.'
+    meas_water_depth_cm = input('Enter the manually-measured water depth'
+                               + ' (in cm) at ' + loc + '.'
                                + ' It will be appended to the end of the'
                                + ' HOBO logger dataset.'
                                + ' If no measurement was taken, enter '
                                + ' "na".  > ')  
     try:
-        float(meas_water_depth_in)
+        float(meas_water_depth_cm)
         # Find the last logger measurement
         last_index = combined_data.index[0]
         for col in data_cols:
@@ -627,11 +634,11 @@ def merge_HOBO_data(loc, file_set, ws_data):
             if last_index < last:
                 last_index = last
         # Enter the converted measurement
-        meas_water_depth_m = float(meas_water_depth_in) * 0.0254
+        meas_water_depth_m = float(meas_water_depth_cm)/100
         combined_data.loc[last_index, 'meas_water_depth_m'] = (
             meas_water_depth_m)
         print('Entering ' + str(meas_water_depth_m) + ' m ('
-              + meas_water_depth_in + '").')
+              + meas_water_depth_cm + '").')
     except ValueError:
         print('No manual measurement entered.')
         
@@ -668,7 +675,8 @@ def get_station_data_for_period(date_min, date_max):
     """
     This function gets weather data for a period of time
     Data is downloaded by segments.
-    If downloading a file fails, the function continue trying
+    If downloading a file fails, the function continues trying with smaller
+    date ranges and skips over unavailable data.
     """
     print("*** Downloading weather station data ***")
     delta = pd.DateOffset(days = lim_dDays)
@@ -797,38 +805,61 @@ def load_weather_data(time_min, time_max):
     data downloaded somewhere'''
     
     # Ask user for data source
-    ws_data_source = input('Download remote weather station data or use'
-                           + ' local file? Type "remote" or "local"  > ')
+    ws_data_source = input('''
+    What weather station data do you want to use?
+    Options are:
+        AISP    (download from AISP using API; works up to 2020-11-22)
+        St27    (download from KUTSYRAC27 station using web scraper tool;
+                 works starting 2020-09-17)
+        local   (use a local csv file; use this option if data has 
+                 been downloaded and combined previously and you have the file)
+    >       ''')
     
     # If remote, try to download data
     i = 0
     max_retries = 5
-    if ws_data_source == 'remote':
+    
+    # Option AISP: download from AISP station using API; works up to 2020-11-22
+    if ws_data_source == 'AISP':
         for i in range(max_retries):
             try:
                 get_station_data_for_period(
                     time_min, time_max + pd.Timedelta(value=1, unit='day'))
                 combined_weather_data = combine_weather_files()
+                combined_weather_data = combined_weather_data.astype(float)
+                combined_weather_data, ws_resampled = convert_weather_station_data(
+                    combined_weather_data, 'AISP')
                 break
             except subprocess.TimeoutExpired:
                 print('Trying again to connect to the weather station (Try '
                       + str(i+1) + ')')
                 pass
     
+    # Option St27: downlaod from KUTSYRAC27 station using web scraper tool;
+    #               works starting 2020-09-17
+    if ws_data_source == 'St27':
+        # Run web scraper tool
+        scraped_file = WUNDERScrape.get_weather_for_range(
+            'KUTSYRAC27', time_min.strftime("%Y-%m-%d"),
+            time_max.strftime("%Y-%m-%d"), os.getcwd())
+        combined_weather_data = format_scraped_weatherdata(scraped_file)
+        combined_weather_data, ws_resampled = convert_weather_station_data(
+            combined_weather_data, 'scraped')
+    
     # If local or unable to download data, ask for file and trim to date range
     if ws_data_source == 'local' or i == max_retries-1:
         _, _, combined_weather_data = ResearchModules.fileGet(
             'Select raw weather data file')
     
-    # Convert the weather data file
-    combined_weather_data = combined_weather_data.astype(float)
-    combined_weather_data, ws_resampled = convert_weather_station_data(
-        combined_weather_data)
+        # Convert the weather data file
+        combined_weather_data = combined_weather_data.astype(float)
+        combined_weather_data, ws_resampled = convert_weather_station_data(
+            combined_weather_data)
     
     return ws_resampled
    
 
-def convert_weather_station_data(combined_weather_data):
+def convert_weather_station_data(combined_weather_data, fmt):
     '''
     Converts raw combined weather station data units, renames columns, and
     resamples to 15 minutes
@@ -836,8 +867,14 @@ def convert_weather_station_data(combined_weather_data):
     Parameters
     ----------
     combined_weather_data : pandas.DataFrame
-        Weather data with index = timestamp and columns Temp (degF),
-        RelPressure(in), AbsPressure(in).
+        Weather data downloaded using one of several fmt methods
+    
+    fmt : str
+        Options:
+            'AISP'      : Format of files obtained from the AISP station using the
+                            StationWeather.py script
+            'scraped'   : Format of files obtained from WeatherUnderground
+                            using the WUNDERScrape.py script
 
     Returns
     -------
@@ -848,26 +885,33 @@ def convert_weather_station_data(combined_weather_data):
 
     '''
     # Replace index with timestamp and sort
+    print('Parsing timestamps...')
     combined_weather_data['DateTime'] = pd.to_datetime(
         combined_weather_data.index)
     combined_weather_data.set_index(['DateTime'], drop=True, inplace=True)
     combined_weather_data.sort_index(inplace=True)
+    combined_weather_data = combined_weather_data[
+        ~combined_weather_data.index.duplicated(keep='first')]
     
-    
-    # Rename weather station data columns
-    combined_weather_data.rename(
-        columns = dict(zip(list(
-            combined_weather_data.columns),
-            weather_station_download_columns)),
-        inplace = True)
+    # Rename weather station data columns if needed
+    if fmt == 'AISP':
+        combined_weather_data.rename(
+            columns = dict(zip(list(
+                combined_weather_data.columns),
+               AISP_station_download_columns)),
+            inplace = True)
     
     # Convert weather station data
-    combined_weather_data['ws_air_pressure_kPa'] = (
+    print('Converting units...')
+    combined_weather_data['ws_abs_pressure_kPa'] = (
         combined_weather_data['ws_abs_pressure_inHg']*3.386)
+    combined_weather_data['ws_rel_pressure_kPa'] = (
+        combined_weather_data['ws_rel_pressure_inHg']*3.386)
     combined_weather_data['ws_air_temp_C'] = (        
         (combined_weather_data['ws_temp_F']-32)*5/9)
     
     # Resample to 15 minute intervals and rename columns
+    print('Resampling weather data to 15 minute intervals...')
     ws_resampled = combined_weather_data.resample('5T').fillna(
         'nearest').resample('15T').mean()
     
@@ -906,6 +950,63 @@ def get_station_data_filename(date_min, date_max):
                 + '.csv')
     return filename
 
+
+
+def format_scraped_weatherdata(scraped_filename, station_elev_ft):
+    """
+    This script formats weather data obtained using WUNDERScrape
+
+    Parameters
+    ----------
+    scraped_filename : str
+        file name and path containing the scraped data
+    station_elev_ft : int or float
+        weather station elevation in feet (for converting pressure)
+
+    Returns
+    -------
+    station_data : Pandas.DataFrame
+        Table containing all of the weather station data
+
+    """
+    
+    # Define columns to use
+    data_cols = {
+        'Temperature (F)'   : 'ws_temp_F',
+        'Pressure (in)'     : 'ws_air_pressure_inHg',
+        }
+    
+    # Read in and format data table
+    station_data = pd.read_csv(
+        scraped_filename, sep=',', header = 0, index_col = 0, na_values = '--')
+    
+    for col in list(data_cols):
+        station_data[col] = station_data[col].astype(float)
+        
+    # Rename columns
+    station_data.rename(data_cols, inplace=True, axis=1)
+    station_data.index.rename('DateTime', inplace=True)
+
+    # Convert units
+    station_elev_m = 0.3048 * station_elev_ft
+    station_data['ws_air_temp_C'] = 5/9*(station_data['ws_temp_F'] - 32)
+    
+    # Calculate aboslute pressure
+    station_data['ws_abs_pressure_inHg'] = ResearchModules.convert_pressure(
+        station_elev_m, station_data['ws_air_temp_C'],
+        station_data['ws_air_pressure_inHg'],
+        conv_type = 'rel_to_abs')
+    
+    # Save the file (overwrite the original)
+    station_data.to_csv(scraped_filename[:-4]+'_conv.csv')
+    
+    return station_data
+ 
+    
+    
+       
+    
+    
 
 ####################
 ### WORKING SCRIPTS TO PROCESS AND PLOT DATA
@@ -1061,7 +1162,7 @@ if __name__ == '__main__':
     processNewHOBOData()
     
     #####
-    # Run these scripts if need to update plots from manually-updated files
+    # Run these scripts if you need to update plots from manually-updated files
     
     # Load HOBO files
     # directory, time_min, time_max = loadHOBOFiles()

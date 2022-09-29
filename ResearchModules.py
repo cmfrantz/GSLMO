@@ -4,6 +4,11 @@ Created on Fri Jun 26 13:50:49 2020
 
 @author: cariefrantz
 """
+
+###############
+# IMPORTS
+###############
+
 import os
 from tkinter import *
 from tkinter import filedialog
@@ -11,6 +16,10 @@ import numpy as np
 import pandas as pd
 import math
 
+
+###############
+# GLOBAL VARIABLES
+###############
 
 # GLOBAL VARIABLES
 gravity_factor = 9.80665
@@ -27,7 +36,12 @@ Award #1801760</a></p>
 '''
 
 
+###############
 # FUNCTIONS
+###############
+
+###############
+# FILE ACQUISITION AND MANIPULATION
 
 def getFiles(title, directory = os.getcwd(), file_type = [('CSV', '*.csv')]):
     '''Gets list of files from user selection'''
@@ -112,10 +126,102 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
     return filename, dirPath, data
 
 
-def calcDepth(water_pressure, air_pressure, density):
-    depth = (water_pressure - air_pressure) * density / gravity_factor
-    return depth
+def download_lake_elevation_data(sdate_min, sdate_max):
+    """
+    This function downloads lake elevation data at Saltair from the USGS
+    waterdata web interface
 
+    Parameters
+    ----------
+    sdate_min : string
+        Start date for data download in format 'YYYY-mm-dd'.
+        (use date_min.strftime('%Y-%m-%d') to format a timestamp)
+    sdate_max : string
+        End date for data download in format 'YYYY-mm-dd'.
+
+    Returns
+    -------
+    elev_data : pandas DataFrame containing five columns:
+        agency | site_no | datetime | elevation (ft) | Data qualification
+        (A = Approved for publication, P = Provisional)
+
+    """
+    site_no = 10010000 # Great Salt Lake at Saltair Boat Harbor, UT
+    
+    # Generate URL
+    data_URL = ("https://waterdata.usgs.gov/nwis/dv?cb_62614=on&format=rdb" +
+                 "&site_no=" + str(site_no) + "&referred_module=sw&period=" +
+                 "&begin_date=" + sdate_min +
+                 "&end_date=" + sdate_max)
+    
+    # Load in website data
+    elev_data = pd.read_csv(data_URL, sep = '\t', header = 31)
+    
+    # Save timestamps as index and convert date format
+    elev_data['date'] = pd.to_datetime(elev_data['20d'])
+    elev_data['20d'] = elev_data['date'].dt.strftime('%Y-%m-%d')
+    elev_data.set_index('date', drop=True, inplace=True)
+    
+    return elev_data
+
+
+def combineFiles(filelist, sep=',', header=0, force_cols=False):
+    '''
+    Combines a group of csv files into one big table
+
+    Parameters
+    ----------
+    filelist : list of str
+        list of files with filepaths
+    sep : str, optional
+        Seperator for the csv file. The default is ','.
+    header : int, optional
+        Row number of the header for each file. The default is 0.
+    force_cols : bool, optional
+        Whether or not to force match column names. The default is False.
+            If true, the columns of the first file are used for each
+                subsequent file.
+            If false, columns with different names will be added as new
+                columns
+
+    Returns
+    -------
+    combined : TYPE
+        DESCRIPTION.
+
+    '''
+    # Read in the first file to form the template
+    combined = pd.read_csv(filelist[0], sep=sep, header=header)
+    cols = list(combined.columns)
+    
+    # Read in and add each additional file
+    for file in filelist[1:]:
+        data = pd.read_csv(file, sep=sep, header=header)
+        if force_cols:
+            col_map = dict(zip(list(data.columns)[0:len(cols)],cols))
+            data.rename(col_map, inplace=True)
+        combined=combined.append(data)
+        
+    if force_cols:
+        combined=combined[cols]
+        
+    return combined
+        
+
+def nansplit(value_list):
+    '''Splits list at nans and returns list of nested lists (groups)'''
+    # Split off any nan-containing rows
+    groups = np.split(value_list, np.where(value_list.isnull().any(axis=1))[0])
+    # Remove NaN entries and delete
+    groups = [gr[~gr.isnull().any(axis=1)] for gr in groups if not
+              isinstance(gr, np.ndarray)]
+    groups = [gr for gr in groups if not gr.empty]
+    return groups
+
+
+
+###############
+# UNIT CONVERSIONS AND COMMON CALCULATIONS
 
 def round1SF(list):
     '''Round a list of numerical values to 1 significant figure'''
@@ -233,52 +339,59 @@ def makeLogspace(**kwargs):
     return np.logspace(minval, maxval, num = n, endpoint = True, base = 10)
 
 
-
-def nansplit(value_list):
-    '''Splits list at nans and returns list of nested lists (groups)'''
-    # Split off any nan-containing rows
-    groups = np.split(value_list, np.where(value_list.isnull().any(axis=1))[0])
-    # Remove NaN entries and delete
-    groups = [gr[~gr.isnull().any(axis=1)] for gr in groups if not
-              isinstance(gr, np.ndarray)]
-    groups = [gr for gr in groups if not gr.empty]
-    return groups
+def C_to_K(temp_C):
+    '''Converts temperature in C to absolute temperature in Kelvin'''
+    T_K = temp_C + 273.15
+    return T_K
 
 
-def download_lake_elevation_data(sdate_min, sdate_max):
-    """
-    This function downloads lake elevation data at Saltair from the USGS
-    waterdata web interface
+def convert_pressure(elev_m, T_C, P, conv_type):
+    '''
+    Converts weather station-reported pressures between absolute (at station)
+    and relative (at sea level) pressure.
 
     Parameters
     ----------
-    sdate_min : string
-        Start date for data download in format 'YYYY-mm-dd'.
-        (use date_min.strftime('%Y-%m-%d') to format a timestamp)
-    sdate_max : string
-        End date for data download in format 'YYYY-mm-dd'.
+    elev_m : int or float
+        station (or location) elevation in meters
+    T_C : int or float
+        station temperature in degrees C
+    P : int or float
+        pressure to convert; can be any unit that scales linearly with kPa
+        (including inHg)
+    conv_type : str
+        'abs_to_rel'    converts absolute (measured at the station) pressure
+                        to relative (at sea level) pressure
+        'rel_to_abs'    converts relative (value at sea level) pressure to
+                        absolute pressure (equivalent at some elevation)
 
     Returns
     -------
-    elev_data : pandas DataFrame containing five columns:
-        agency | site_no | datetime | elevation (ft) | Data qualification
-        (A = Approved for publication, P = Provisional)
+    P_out : float
+        converted pressure (in the original units)
 
-    """
-    site_no = 10010000 # Great Salt Lake at Saltair Boat Harbor, UT
+    '''
+    # Physical constants
+    Lb = -0.0065    # standard temperature lapse rate (K/m)
+    R = 8.31432     # ideal gas constant (N*m/mol/K)
+    g0 = 9.80665    # gravitational acceleration (m/s^2)
+    M = 0.0289644   # molar mass of Earth's air (kg/mol)
     
-    # Generate URL
-    data_URL = ("https://waterdata.usgs.gov/nwis/dv?cb_62614=on&format=rdb" +
-                 "&site_no=" + str(site_no) + "&referred_module=sw&period=" +
-                 "&begin_date=" + sdate_min +
-                 "&end_date=" + sdate_max)
+    # Convert ft to m
+    # elev_m = 0.3048 * elev_ft
     
-    # Load in website data
-    elev_data = pd.read_csv(data_URL, sep = '\t', header = 31)
+    # Convert T in C to K
+    Tk = T_C + 273.15
     
-    # Save timestamps as index and convert date format
-    elev_data['date'] = pd.to_datetime(elev_data['20d'])
-    elev_data['20d'] = elev_data['date'].dt.strftime('%Y-%m-%d')
-    elev_data.set_index('date', drop=True, inplace=True)
-    
-    return elev_data
+    if conv_type == 'abs_to_rel':
+        P_out = P * (1+Lb*elev_m/(Tk-Lb*elev_m))**(g0*M/R/Lb)
+        
+    if conv_type == 'rel_to_abs':
+        P_out = P * (1+Lb*elev_m/(Tk-Lb*elev_m))**(-g0*M/R/Lb)
+        
+    return P_out
+
+
+def calcDepth(water_pressure, air_pressure, density):
+    depth = (water_pressure - air_pressure) * density / gravity_factor
+    return depth

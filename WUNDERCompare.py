@@ -19,6 +19,8 @@ from bokeh.palettes import viridis
 # Plot formatting
 color_list = ['#492365', '#575047', '#aa989c', '#a391b1']
 bokeh_head = ResearchModules.GSLMO_html_head + '''
+<p><a href="https://faculty.weber.edu/cariefrantz/GSL/GSLMO_plots_bokeh.html">
+Link to main GSLMO page</a></p>
 <h2>Weather Station Data Comparison</h2>
 <p>This tool compares Weather Underground weather station data from personal
 weather stations closest to northern Antelope Island, including KUTSYRAC22,
@@ -119,8 +121,6 @@ if __name__ == '__main__':
             col = [idx for idx, s in enumerate(columns) if meas in s]
             colmap[columns[col[0]]] = meas
         data.rename(columns = colmap, inplace=True)
-        # Clean up the data
-        data['Solar'] = data['Solar'].str.replace(' w/m�','')
         # Convert measurement units
         data_converted=pd.DataFrame()
         for measurement in measlist:

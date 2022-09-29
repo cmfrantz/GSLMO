@@ -38,8 +38,8 @@ from ambient_aprs.ambient_aprs import AmbientAPRS
 
 AMBIENT_ENDPOINT = 'https://api.weather.com/v2'
 # AMBIENT_ENDPOINT = 'https://api.ambientweather.net/v1'
-AMBIENT_API_KEY = '123456keyvalue'
-AMBIENT_APPLICATION_KEY = '78901keyvalue'
+AMBIENT_API_KEY = '35c8a71b05324137a0bc3d220d17c6182df7184953d148c4b8fc8cafe6e06192'
+AMBIENT_APPLICATION_KEY = '6461626a535b439a93d828840b0a392aea18784125504f729e8e6e83b7dcaef4'
 # CSV_FILES_PATH = 'weather-data/'
 OUTPUT_PATH = '.'
 DEBUG_MODE = True

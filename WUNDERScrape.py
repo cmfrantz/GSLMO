@@ -119,7 +119,7 @@ def scrape_page(file, date, header=True):
     
     # Save scraped data as csv-formatted text
     print('Saving data for ' + date + '...')
-    out_file = open(file,'a')
+    out_file = open(file,'a',encoding='utf8')
 
     if header:
         # Get the header values (row 1)
@@ -146,7 +146,9 @@ def scrape_page(file, date, header=True):
             output_row = []
             for column in columns:
                 text = column.text.strip()
-                output_row.append(text.rsplit('\xa0°')[0])
+                outtext = text.rsplit('\xa0°')[0]
+                outtext = outtext.rsplit(' w/m²')[0]
+                output_row.append(outtext)
             
             # Add the date to the time value
             output_row[time_col] = date + ' ' + output_row[time_col]
@@ -157,34 +159,34 @@ def scrape_page(file, date, header=True):
     # Save the file
     out_file.close()
     
-    
-def next_day(dt):
-    ''' Advance the datetime value (dt) by one day '''
-    nextday = dt + timedelta(days=1)
-    return nextday
+def get_weather_for_range(station, date_start, date_end, directory):
+    '''
+    This script scrapes weather data for each date within a date range
+    from the Weather Underground station indicated and saves the combined file
+    in the selected directory.
 
-#%%
-        
-# MAIN
-if __name__ == '__main__': 
-    
-    print('''
-          *** This script scrapes weather data from Weather Underground ***
-          ''')
-    
-    # Get input parameters from the user
-    station = input('Enter the 10-digit station code (e.g., KUTSYRAC22)  > ')
-    date_start = input('Enter the start date (format: 2020-02-28)  > ')
-    date_end = input('Enter the end date (format: 2021-04-19)  > ')
-        
-    # Save the data table contents to a csv file in a user-selected directory
-    root = tk.Tk()
-    directory = filedialog.askdirectory(initialdir=os.getcwd())
-    root.destroy()
-    filename = directory + '/wu_' + station + '.csv'
+    Parameters
+    ----------
+    station : str
+        Weather Underground station code, e.g., KUTSYRAC22
+    date_start : str
+       start date in the format 'yyyy-mm-dd'
+    date_end : str
+        end date in the format 'yyyy-mm-dd'
+    directory : str
+        directory where data should be saved
+
+    Returns
+    -------
+    filename : str
+        name of the combined data file
+
+    '''
     print('\n*** Scraping Weather Underground for data from Station '
           + station + ' between ' + date_start
           + ' and ' + date_end + '. ***\n')
+    
+    filename = directory + '/wu_' + station + '.csv'
         
     # Loop through each date in the range and scrape the station's data
     dt_start = datetime.strptime(date_start, date_fmt)
@@ -213,6 +215,35 @@ if __name__ == '__main__':
         else:
             header = False
             dt_curr = next_day(dt_curr)
+            
+    return filename
+    
+    
+def next_day(dt):
+    ''' Advance the datetime value (dt) by one day '''
+    nextday = dt + timedelta(days=1)
+    return nextday
+
+#%%
+        
+# MAIN
+if __name__ == '__main__': 
+    
+    print('''
+          *** This script scrapes weather data from Weather Underground ***
+          ''')
+    
+    # Get input parameters from the user
+    station = input('Enter the 10-digit station code (e.g., KUTSYRAC22)  > ')
+    date_start = input('Enter the start date (format: 2020-02-28)  > ')
+    date_end = input('Enter the end date (format: 2021-04-19)  > ')
+        
+    # Save the data table contents to a csv file in a user-selected directory
+    root = tk.Tk()
+    directory = filedialog.askdirectory(initialdir=os.getcwd())
+    root.destroy()
+    
+    filename = get_weather_for_range(station, date_start, date_end, directory)
 
         
     print('\n*** All done! Data saved in ' + filename + ' ***')
