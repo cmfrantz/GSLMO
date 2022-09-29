@@ -47,12 +47,16 @@ import math
 ###############
 # GLOBAL CONSTANTS
 ###############
+
+# Constants from the Naftz et al. (2011) equation of state
 A = 184.01062
 B = 1.04708
 C = -1.21061
 D = 0.000314721
 E = 0.00199
 F = -0.00112
+
+# Warning text for values outside the valid range
 warn_start = 'Warning: The '
 warn_mid = ' is outside the range of 0–180 g/L used to develop the GSL equation of state in Naftz (2011). Take this calculated '
 warn_end = ' value with a grain of salt. Pun fully intended.'
