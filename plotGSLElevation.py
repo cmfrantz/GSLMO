@@ -22,6 +22,7 @@ from bokeh.models import ColumnDataSource, Div, HoverTool
 
 from datetime import date
 from pandas.tseries.offsets import DateOffset
+import matplotlib.pyplot as plt
 
 
 ####################
@@ -192,3 +193,24 @@ fig.toolbar.active_inspect = None
 GSL_elev_head = HTML_head + date.today().strftime(datefmt) + '</p>'
 output_file(directory + '\\GSL_elevation.html')
 save(column([Div(text = GSL_elev_head),fig]))
+
+#%%
+'''
+# Save editable figure
+date_start = date(2002,1,1)
+date_end = date(2022,12,31)
+fig = plt.figure(figsize=(8,6))
+plt.scatter(elev_data.index, elev_data[col_elev], c='lightgray', s=mkrsize)
+plt.plot(interp.index, interp.values, c='midnightblue')
+
+hlines = [4195.5, 4193, 4191.5]
+for l in hlines:
+    plt.plot([date_start, date_end],[l, l])
+
+plt.xlim(date_start, date_end)
+plt.ylim(4190,4200)
+plt.xlabel('Year')
+plt.ylabel('Elevation (ft)')
+plt.rcParams['svg.fonttype'] = 'none'
+fig.savefig('GSL_Elevation.svg', format='svg')
+'''
