@@ -5,7 +5,7 @@ Created on Fri Sep 30 10:12:33 2022
 @author: cariefrantz
 @project: GSLMO
 
-Script plots sets of GSL data. It can also be used to plot timeseries data.
+Script plots sets of GSL data, including elevation data and HOBO logger data.
 
 """
 
