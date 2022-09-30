@@ -5,7 +5,8 @@ Created on Fri Sep 30 10:12:33 2022
 @author: cariefrantz
 @project: GSLMO
 
-Script plots sets of GSL data, including elevation data and HOBO logger data.
+Script plots compiled GSL timeseries data, including elevation data and
+HOBO logger data.
 
 """
 
