@@ -15,6 +15,11 @@ from tkinter import filedialog
 import numpy as np
 import pandas as pd
 import math
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from datetime import datetime
+from datetime import timedelta
+from scipy.interpolate import make_interp_spline
 
 
 ###############
@@ -217,6 +222,175 @@ def nansplit(value_list):
               isinstance(gr, np.ndarray)]
     groups = [gr for gr in groups if not gr.empty]
     return groups
+
+
+
+###############
+# DATA PLOTTING FUNCTIONS
+
+
+def smooth_timeseries_data(data, valcol, resample_interval='1d',
+                           smooth_interval='7d'):
+    '''
+    Smooths timeseries data by resampling and calculating a simple moving
+    average.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Dataframe with index = timestamps and columns containing data to be
+        smoothed.
+    valcol : str
+        Name of the column containing the data to be smoothed
+    resample_interval : str, optional
+        Frequency for time resampling. The default is '1d' (daily).
+    smooth_interval : str, optional
+        Bin interval for simple moving average. The default is '7d' (weekly).
+
+    Returns
+    -------
+    df_resampled : pd.DataFrame
+        Dataframe containing the smoothed data.
+
+    '''
+    
+    # Create the trimmed dataframe
+    df = pd.DataFrame(data=data[valcol])
+    df['Timestamp'] = df.index.to_pydatetime()
+    df.set_index('Timestamp', inplace=True)
+    
+    # Summarize by date
+    df_resampled=pd.DataFrame()
+    df_resampled['mean'] = df.resample(resample_interval).mean()
+    df_resampled['median'] = df.resample(resample_interval).median()
+    df_resampled['min'] = df.resample(resample_interval).min()
+    df_resampled['max'] = df.resample(resample_interval).max()
+
+    
+    # Moving average
+    df_resampled['SMA'] = df_resampled['mean'].rolling(smooth_interval).mean()
+    
+    return df_resampled
+
+
+
+def plotData(data, xcol, ycol, xlabel, ylabel, title, ax = [],
+             plotsize=(12,6), smooth=False, savefig=False,
+             xtype='general', datefmt='%m/%d/%y %H:%M'):
+    '''
+    Plots x,y data as a line plot, saves as png and svg.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Table containing the x and y data
+    xcol : str
+        Name of the dataframe column containing the x data
+    ycol : str
+        Name of the dataframe column containing the y data
+    xlabel : str
+        X axis label for the plot
+    ylabel : str
+        Y axis label for the plot
+    title : str
+        Plot title for filename
+    ax : matplotlib._subplots.AxesSubplot. The default is []
+        Pass a subplot axes handle if a subplot already exists that the plot
+        should be added to. The default creates a new plot.
+    plotsize : tuple, optional
+        Size of the plot (w, ht). The default is (12,6).
+    smooth : bool, optional
+        Whether or not to perform data smoothing. The default is False.
+    xtype : str, optional
+        Type of x-axis data. The default is 'general'.
+        Options:
+            'general'   : For non-timeseries x values
+            'datetime'  : For timeseries x values
+    datefmt : str, optional
+        Datetime format in the table. Required if xtype == datetime.
+        The default is '%m/%d/%y %H:%M'.
+
+    Returns
+    -------
+    None.
+
+    '''
+    # Datetime axis formatting information
+    years = mdates.YearLocator()
+    months = mdates.MonthLocator()
+    years_fmt = mdates.DateFormatter('%Y')
+    
+    # Default fig
+    fig=[]
+
+    # Select columns
+    xdata = data[xcol].values 
+    ydata = data[ycol].values
+    
+    # Convert timeseries data
+    if xtype=='datetime':
+        xdata = [datetime.strptime(date, datefmt) for date in xdata]
+    else:
+        xdata = pd.to_numeric(ydata, errors='coerce')
+    
+    # Format y data
+    ydata = pd.to_numeric(ydata, errors='coerce')
+
+    # Perform smoothing    
+    if smooth==True:
+        if xtype=='general':
+            spline = make_interp_spline(xdata, ydata)
+            xdata = np.linspace(xdata.min(), xdata.max(), 500)
+            ydata = spline(xdata)
+        
+        # For datetime x, smooth data by moving average    
+        if xtype=='datetime':
+            df = pd.DataFrame(data=ydata,index=xdata,columns=['y'])
+            smoothed = smooth_timeseries_data(df, 'y')
+            ydata = smoothed['SMA'].values
+            xdata = smoothed.index
+            
+            #y_df = pd.DataFrame(
+            #    data = ydata, index = xdata, columns = ['y'], copy = True)
+            #y_df = y_df[~y_df.index.duplicated()]
+            #y_df = y_df.resample('1T').interpolate(
+            #    'index', limit=20, limit_area = 'inside').resample(
+            #        '7d').asfreq().dropna()
+            # Determine weekly min/max values
+            #minmax = y_df.resample('7d')['y'].agg(['min','max'])
+            #ydata = y_df['y'].values
+            #xdata = list(y_df.index)
+    
+    # Build new figure if no subplot exists
+    if not ax:
+        fig, ax = plt.subplots(figsize=plotsize)
+        
+    # Build plot
+    ax.plot(xdata, ydata)
+    ax.set(xlabel=xlabel, ylabel=ylabel)
+    
+    if xtype=='datetime':
+        # Prettify datetime axis
+        ax.xaxis.set_major_locator(years)
+        ax.xaxis.set_major_formatter(years_fmt)
+        ax.xaxis.set_minor_locator(months)
+        
+        # Round to nearest years
+        datemin = pd.to_datetime(xdata[0].year, format='%Y')
+        datemax = pd.to_datetime((xdata[-1] + timedelta(days=365)).year, format='%Y')
+        ax.set_xlim(datemin, datemax)
+    
+    # Export plot
+    if savefig:
+        if fig:
+            fig.show()
+            fig.savefig(title + '.png')
+            fig.savefig(title + '.svg')
+        else:
+            print('''Error: Trying to save a partial figure in PlotData.
+If your plot has only one line, leave the ax value to default (ax=[]).
+If you are plotting multiple lines, you will need to save the figure outside
+the PlotData function.''')
 
 
 
