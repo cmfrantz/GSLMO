@@ -131,7 +131,7 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
     return filename, dirPath, data
 
 
-def download_lake_elevation_data(sdate_min, sdate_max):
+def download_lake_elevation_data(sdate_min, sdate_max, site=10010000):
     """
     This function downloads lake elevation data at Saltair from the USGS
     waterdata web interface
@@ -143,6 +143,8 @@ def download_lake_elevation_data(sdate_min, sdate_max):
         (use date_min.strftime('%Y-%m-%d') to format a timestamp)
     sdate_max : string
         End date for data download in format 'YYYY-mm-dd'.
+    site : int, optional
+        USGS site number
 
     Returns
     -------
@@ -151,16 +153,23 @@ def download_lake_elevation_data(sdate_min, sdate_max):
         (A = Approved for publication, P = Provisional)
 
     """
-    site_no = 10010000 # Great Salt Lake at Saltair Boat Harbor, UT
+    # site = 10010000 # Great Salt Lake at Saltair Boat Harbor, UT
+    # site = 10010024 # Great Salt Lake S of causeway near Lakeside, UT
     
     # Generate URL
     data_URL = ("https://waterdata.usgs.gov/nwis/dv?cb_62614=on&format=rdb" +
-                 "&site_no=" + str(site_no) + "&referred_module=sw&period=" +
+                 "&site_no=" + str(site) + "&referred_module=sw&period=" +
                  "&begin_date=" + sdate_min +
                  "&end_date=" + sdate_max)
     
+    data_URL = ("https://nwis.waterservices.usgs.gov/nwis/iv/" + 
+                "?sites=" + str(site) + "&parameterCd=62614" +
+                "&startDT=" + sdate_min +
+                "&endDT=" + sdate_max +
+                "&siteStatus=all&format=rdb")
+    
     # Load in website data
-    elev_data = pd.read_csv(data_URL, sep = '\t', header = 31)
+    elev_data = pd.read_csv(data_URL, sep = '\t', header = 28)
     
     # Save timestamps as index and convert date format
     elev_data['date'] = pd.to_datetime(elev_data['20d'])
