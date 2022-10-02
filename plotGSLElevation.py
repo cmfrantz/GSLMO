@@ -4,7 +4,9 @@ Created on Sat Jul 24 10:21:06 2021
 
 @author: cariefrantz
 
-Updates the HTML page of historical lake elevation at Saltair from USGS data
+Updates the HTML page of historical lake elevation at from USGS data.
+Data from 1847-2022 is from Saltair site 10010000, which went dry in 2022
+Data from 2019-     is from Lakeside causeway site 10010024
 
 """
 
@@ -14,6 +16,8 @@ Updates the HTML page of historical lake elevation at Saltair from USGS data
 
 import ResearchModules
 import os
+import pandas as pd
+import numpy as np
 
 # from bokeh.io import show
 from bokeh.layouts import column
@@ -30,6 +34,10 @@ import matplotlib.pyplot as plt
 ####################
 directory = os.getcwd()     # Directory for saving the page
 
+# Download URLs
+olddata_html = 'https://faculty.weber.edu/cariefrantz/GSL/LakeElevationSaltair.csv'
+cw_site = 10010024
+
 # Data parsing
 datefmt = '%Y-%m-%d'
 col_date = '20d'            # Header row value for the date column in dataset
@@ -37,12 +45,13 @@ col_elev = '14n'            # Header row value for the elevation colum
 col_dtype = '10s'           # Header row value for the data type/status
 
 # Data analysis
-rec_first = '1847-10-18'   # Date of first measurement in the dataset
+rec_first = '1847-10-18'    # Date of first measurement in the dataset
 pi_start = '1850'           # Designate start of 'pre-industrial' period
 pi_end = '1900'             # Designate end of 'pre-industrial' period
 hist_start = '1900'         # Designate start of 'historical' period
 hist_end = '2000'           # Designate end of 'historical' period
 hist_range = hist_start + '-' + hist_end
+cw_first = '2019-10-03'     # Date of first measurement at Causeway site
 
 # Plot formatting
 plt_ht = 5
@@ -58,84 +67,133 @@ active_tap = 'auto'
 
 # HTML page formatting
 HTML_head = ('''
-<h1>Great Salt Lake Elevation at Saltair (South Arm)</h1>
-<p>Daily mean lake water surface elevation above ngvd 1929 measured at
-Saltair Boat Harbor (South Arm)</p>
-<p>Data from the USGS National Water Information System / 
-USGS Utah Water Science Center,
-<a href="https://waterdata.usgs.gov/nwis/inventory?agency_code=USGS&
-site_no=10010000">Site 10010000</a>
-<br />Plot by Dr. Carie Frantz,
+<h1>Great Salt Lake South Arm Elevation</h1>
+<p>Daily mean lake water surface elevation above ngvd 1929 from the USGS
+National Water Information System / USGS Utah Water Science Center
+<br /><b>Saltair:</b> Elevation measured at Saltair Boat Harbor, 
+<a href="https://waterdata.usgs.gov/monitoring-location/10010000/">
+Station 10010000</a>
+<br /><b>Causeway:</b> Elevation measured near Lakeside on the south side of the Union
+Pacific Rail Causeway, 
+<a href="https://waterdata.usgs.gov/monitoring-location/10010024/">
+Station 10010024</a></p>
+<p>Plot by Dr. Carie Frantz,
 <a href="https://www.weber.edu/ees">Department of Earth and Environmental 
 Sciences</a>, Weber State University, using Python script
 <a href="https://github.com/cmfrantz/GSL">plotGSLElevation.py</a></p>
-</h2>
 <p>Definitions: Pre-industrial is defined as '''
  + pi_start + '–' + pi_end + '.'
  + ' Historical is defined as '
- + hist_start + '–' + hist_end + '.'
- + '''
- <p>Data type key (display using the Hover tool):
- <ul>
- <li>A &emsp; Approved for publication — Processing and review completed.
- </li>
- <li>P &emsp; Provisional data subject to revision.</li>
- <li>e &emsp; Value has been estimated.</li>
- </ul>
- </p>
-''')
+ + hist_start + '–' + hist_end + '.</p>'
+ #+ '''
+ #<p>Data type key (display using the Hover tool):
+ #<ul>
+ #<li>A &emsp; Approved for publication — Processing and review completed.
+ #</li>
+ #<li>P &emsp; Provisional data subject to revision.</li>
+ #<li>e &emsp; Value has been estimated.</li>
+ #<li>Eqp &emsp; Value affected by equipment malfunction.</li>
+ #</ul>
+ #</p>
+#'''
+)
 HTML_newmin_head = '<h2>New minimum: '
 HTML_newmin_mid = ' ft reached on '
 HTML_newmin_end = '''
     </h2>
+    <h3>As of 9/29/2022, lake levels dropped below where the Saltair station
+could measure.</h3>
     <p><b>Use the toolbars to the right of the plot to scroll/zoom and display
     daily mean values.</b></p>
     <p>Plot last updated 
     '''
+    
+    
+    
+####################
+# FUNCTIONS
+####################    
+
+def prepElevationData(elev_data):
+    
+    # Convert elevation data to numeric
+    elev_data[col_elev] = pd.to_numeric(elev_data[col_elev], errors='coerce')
+    
+    # Resample to daily
+    elev_data_daily = elev_data.resample('D').mean()
+    elev_data_daily[col_date] = [str(dt)[:10] for dt in elev_data_daily.index.values]
+    
+    # Interpolate & calculate time-weighted average
+    interp = elev_data_daily.interpolate()
+    interp = interp.resample('W').mean()
+    interp.index = interp.index + DateOffset(days=-3)
+    
+    # Prep the data
+    source = ColumnDataSource(data={
+        'dt'      : elev_data_daily.index,
+        'date'    : elev_data_daily[col_date],
+        'elev'    : elev_data_daily[col_elev],
+        #'dtype'   : elev_data[col_dtype]
+        })
+    
+    return elev_data_daily, interp, source
+    
 #%%
 
 ####################
 # CODE
 ####################
 
-print('\nBuilding historical lake elevation plot...')
+# Download the historical elevation data at Saltair
+print('\nDownloading historical lake elevation data...')
+elev_data_Saltair = pd.read_csv(olddata_html, sep = ',', header = 0)
+elev_data_Saltair['date'] = pd.to_datetime(elev_data_Saltair['20d'])
+elev_data_Saltair['20d'] = elev_data_Saltair['date'].dt.strftime('%Y-%m-%d')
+elev_data_Saltair.set_index('date', drop=True, inplace=True)
 
-# Download the elevation data for the entire record
-elev_data = ResearchModules.download_lake_elevation_data(
-    rec_first, date.today().strftime(datefmt))
+# Download the elevation data for the new Lakeside station
+print('\nDownloading Causeway elevation data...')
+elev_data_Causeway = ResearchModules.download_lake_elevation_data(
+    cw_first, date.today().strftime(datefmt), cw_site)
 
 #%%
 
+print('\nParsing data...')
+
+# Historical (Saltair) data
+daily_elev_data_Saltair, Saltair_interp, Saltair_source = prepElevationData(
+    elev_data_Saltair)
+# Pre-industrial
+pi_mean = Saltair_interp[col_elev][pi_start : pi_end].mean()
+# Historical
+hist_mean = Saltair_interp[col_elev][hist_start : hist_end].mean()
+
+# Modern (Causeway) data
+daily_elev_data_Causeway, Causeway_interp, Causeway_source = prepElevationData(
+    elev_data_Causeway)
+
 # Calculate historical min/max
-hist_min = elev_data[hist_start : hist_end][col_elev].min(skipna=True)
-hist_max = elev_data[hist_start : hist_end][col_elev].max(skipna=True)
+hist_min = elev_data_Saltair[hist_start : hist_end][col_elev].min(skipna=True)
+hist_max = elev_data_Saltair[hist_start : hist_end][col_elev].max(skipna=True)
 
 # Find min & date
-elev_min = elev_data[col_elev].min(skipna=True)
-elev_min_date = elev_data[elev_data[col_elev]==elev_min][col_date][0]
+elev_min_Saltair = np.nanmin(daily_elev_data_Saltair[col_elev])
+elev_min_Causeway = np.nanmin(daily_elev_data_Causeway[col_elev])
+elev_min = min(elev_min_Saltair, elev_min_Causeway)
+if elev_min_Causeway < elev_min_Saltair:
+    elev_min_date = daily_elev_data_Causeway[
+        daily_elev_data_Causeway[col_elev]==elev_min][col_date][0]
+else:
+    elev_min_date = Saltair_interp[
+        Saltair_interp[col_elev]==elev_min][col_date][0]
+elev_min = round(elev_min,1)
 
 # Update HTML header
 HTML_head = (HTML_head + HTML_newmin_head + str(elev_min) + HTML_newmin_mid
              + elev_min_date + HTML_newmin_end)
 
-# Interpolate & calculate time-weighted average
-interp = elev_data[col_elev].resample('D').mean().interpolate()
-interp = interp.resample('W').mean()
-interp.index = interp.index + DateOffset(days=-3)
-# Pre-industrial
-pi_mean = interp[pi_start : pi_end].mean()
-# Historical
-hist_mean = interp[hist_start : hist_end].mean()
-
-# Prep the data
-source = ColumnDataSource(data={
-    'dt'      : elev_data.index,
-    'date'    : elev_data[col_date],
-    'elev'    : elev_data[col_elev],
-    'dtype'   : elev_data[col_dtype]
-    })
-
 # Build the bokeh figure
+print('\nBuilding the figure...')
 fig = figure(plot_height = plt_ht*100, plot_width = plt_w*100,
              tools = toolset,
              x_axis_type = 'datetime',
@@ -147,32 +205,39 @@ fig.yaxis.axis_label = 'Lake elevation (ft)'
 
 # Add the historical min, average, max lines
 fig.line(
-    [elev_data.index.min(), elev_data.index.max()], [pi_mean, pi_mean],
-    color='lightgrey', line_width=linew, alpha=alpha,
+    [elev_data_Saltair.index.min(), elev_data_Causeway.index.max()],
+    [pi_mean, pi_mean], color='lightgrey', line_width=linew, alpha=alpha,
     legend_label = str(round(pi_mean,1)) + ' ft (pre-industrial mean)')
 fig.line(
-    [elev_data.index.min(), elev_data.index.max()], [hist_mean, hist_mean],
-    color='grey', line_width=linew, alpha=alpha,
+    [elev_data_Saltair.index.min(), elev_data_Causeway.index.max()],
+    [hist_mean, hist_mean], color='grey', line_width=linew, alpha=alpha,
     legend_label = str(round(hist_mean,1)) + ' ft (historical mean)')
 fig.line(
-    [elev_data.index.min(), elev_data.index.max()], [hist_max, hist_max],
-    color='steelblue', line_width=linew, alpha=alpha,
+    [elev_data_Saltair.index.min(), elev_data_Causeway.index.max()],
+    [hist_max, hist_max], color='steelblue', line_width=linew, alpha=alpha,
     legend_label = str(round(hist_max,1)) + ' ft (historical maximum)')
 fig.line(
-    [elev_data.index.min(), elev_data.index.max()], [hist_min, hist_min],
-    color='crimson', line_width=linew, alpha=alpha,
+    [elev_data_Saltair.index.min(), elev_data_Causeway.index.max()],
+    [hist_min, hist_min], color='crimson', line_width=linew, alpha=alpha,
     legend_label = str(round(hist_min,1)) + ' ft (historical minimum)')
 
 # Add the station measurements
 meas = fig.circle(
-    x='dt', y='elev', source=source, size=mkrsize, color='lightgray',
-    legend_label = 'station measurements'
+    x='dt', y='elev', source=Saltair_source, size=mkrsize,
+    color='lightblue', legend_label = 'Station measurements: Saltair'
+    )
+meas = fig.circle(
+    x='dt', y='elev', source=Causeway_source, size=mkrsize,
+    color='thistle', legend_label = 'Station measurements: Causeway'
     )
 
 # Add the interpolated weekly mean
 fig.line(
-    interp.index, interp.values, color='midnightblue', alpha=alpha,
-    legend_label='interpolated weekly mean')
+    Saltair_interp.index, Saltair_interp[col_elev].values, color='darkblue',
+    alpha=alpha, legend_label='Interpolated weekly mean: Saltair')
+fig.line(
+    Causeway_interp.index, Causeway_interp[col_elev].values, color='indigo',
+    alpha=alpha, legend_label='Interpolated weekly mean: Causeway')
 
 # Configure the toolbar
 hover = HoverTool(
