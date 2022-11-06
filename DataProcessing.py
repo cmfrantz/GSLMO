@@ -185,6 +185,7 @@ density = {
     }
 
 date_fmt = '%Y-%m-%d'
+gravity_factor = 9.80665
 
 
 
@@ -766,9 +767,6 @@ def get_station_data(sdate_min, sdate_max, timeout=60):
         else:
             success = True
     return success
-
-    
-    
     
     
 def combine_weather_files():
@@ -811,9 +809,9 @@ def load_weather_data(time_min, time_max):
         AISP    (download from AISP using API; works up to 2020-11-22)
         St27    (download from KUTSYRAC27 station using web scraper tool;
                  works starting 2020-09-17)
-        local   (use a local csv file; use this option if data has 
-                 been downloaded and combined previously and you have the file)
-    >       ''')
+        local   (use a local csv file; use this option if data has been
+                 downloaded and combined previously and you have the file)
+        ''')
     
     # If remote, try to download data
     i = 0
@@ -907,8 +905,8 @@ def convert_weather_station_data(combined_weather_data, fmt):
         combined_weather_data['ws_abs_pressure_inHg']*3.386)
     combined_weather_data['ws_rel_pressure_kPa'] = (
         combined_weather_data['ws_rel_pressure_inHg']*3.386)
-    combined_weather_data['ws_air_temp_C'] = (        
-        (combined_weather_data['ws_temp_F']-32)*5/9)
+    combined_weather_data['ws_air_temp_C'] = F_to_C(
+        combined_weather_data['ws_temp_F'])
     
     # Resample to 15 minute intervals and rename columns
     print('Resampling weather data to 15 minute intervals...')
@@ -916,6 +914,11 @@ def convert_weather_station_data(combined_weather_data, fmt):
         'nearest').resample('15T').mean()
     
     return combined_weather_data, ws_resampled
+
+
+def F_to_C(T_F):
+    T_C = (T_F-32)*5/9
+    return T_C
        
 
 def update_station_cache(sdate_min, sdate_max):
@@ -1001,9 +1004,6 @@ def format_scraped_weatherdata(scraped_filename, station_elev_ft):
     station_data.to_csv(scraped_filename[:-4]+'_conv.csv')
     
     return station_data
- 
-    
-    
        
     
     
@@ -1014,12 +1014,16 @@ def format_scraped_weatherdata(scraped_filename, station_elev_ft):
 
 def calc_depth(hobo_location, water_density):
     '''Calculate water depth from pressure data and assumed density'''
-    gravity_factor = 9.80665
     depth = ((hobo_location['pndt_water_pressure_kPa']
               - hobo_location['ws_air_pressure_kPa'])
              * water_density / gravity_factor)
     return depth
 
+def calc_density(pressure_water, pressure_air, water_depth):
+    '''Calculate water salinity from pressure data and water depth'''
+    density = water_depth * gravity_factor / (pressure_water-pressure_air)
+    return density
+    
 
 def getPlotInfo(plot):
     lines = [m for m in plotlist[plot] if type(m) == int]
@@ -1154,7 +1158,6 @@ if __name__ == '__main__':
     
     #####
     # Troubleshooting steps
-    
     
     
     #####

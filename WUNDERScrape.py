@@ -73,7 +73,7 @@ max_tries = 5 # Number of times to try to load a date before moving on
 # FUNCTIONS
 #######################
 
-def scrape_page(file, date, header=True):
+def scrape_page(file, station, date, header=True):
     '''
     Function scrapes the page for the input date and saves the data to the
     data file.
@@ -197,7 +197,8 @@ def get_weather_for_range(station, date_start, date_end, directory):
     while dt_curr<=dt_end:
         # Scrape the Weather Underground data table page
         try:
-            scrape_page(filename, dt_curr.strftime(date_fmt), header = header)
+            scrape_page(filename, station, dt_curr.strftime(date_fmt),
+                        header = header)
         # If a ValueError is returned, skip to the next date
         except ValueError as e:
             print(e)

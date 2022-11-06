@@ -265,10 +265,9 @@ def smooth_timeseries_data(data, valcol, resample_interval='1d',
     
     # Create the trimmed dataframe
     df = pd.DataFrame(data=data[valcol])
-    df['Timestamp'] = df.index.to_pydatetime()
-    df.set_index('Timestamp', inplace=True)
     
     # Summarize by date
+    #df_resampled=pd.DataFrame(columns=['mean','median','min','max'])
     df_resampled=pd.DataFrame()
     df_resampled['mean'] = df.resample(resample_interval).mean()
     df_resampled['median'] = df.resample(resample_interval).median()
@@ -295,6 +294,7 @@ def plotData(data, xcol, ycol, xlabel, ylabel, title, ax = [],
         Table containing the x and y data
     xcol : str
         Name of the dataframe column containing the x data
+        If xcol is 'index', grabs the index values for x
     ycol : str
         Name of the dataframe column containing the y data
     xlabel : str
@@ -333,12 +333,18 @@ def plotData(data, xcol, ycol, xlabel, ylabel, title, ax = [],
     fig=[]
 
     # Select columns
-    xdata = data[xcol].values 
+    if xcol == 'index':
+        xdata = list(data.index)
+    else:
+        xdata = data[xcol].values 
     ydata = data[ycol].values
     
     # Convert timeseries data
     if xtype=='datetime':
-        xdata = [datetime.strptime(date, datefmt) for date in xdata]
+        if type(xdata[0])==pd._libs.tslibs.timestamps.Timestamp:
+            pass
+        else:
+            xdata = [datetime.strptime(date, datefmt) for date in xdata]
     else:
         xdata = pd.to_numeric(ydata, errors='coerce')
     
@@ -519,13 +525,38 @@ def makeLogspace(**kwargs):
             n = def_steps
     
     print('minval: '+str(minval)+'  maxval: '+str(maxval)+'  n: '+str(n))
+    
     return np.logspace(minval, maxval, num = n, endpoint = True, base = 10)
+
+
+def ft_to_m(ft):
+    '''Converts feet to meters'''
+    m = ft/3.281
+    return m
+
+
+def inch_to_cm(inch):
+    '''Converts inches to cm'''
+    cm = inch*2.54
+    return cm
+
+
+def F_to_C(temp_F):
+    '''Converts temperature in F to C'''
+    T_C = (temp_F - 32)*5/9
+    return T_C
 
 
 def C_to_K(temp_C):
     '''Converts temperature in C to absolute temperature in Kelvin'''
     T_K = temp_C + 273.15
     return T_K
+
+
+def lumsqft_to_lux(lumsqft):
+    '''Converts light in lumen per sqft to lux (lumen/sqm)'''
+    lux = lumsqft/0.3048**2
+    return lux
 
 
 def convert_pressure(elev_m, T_C, P, conv_type):
