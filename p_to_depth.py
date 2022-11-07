@@ -3,6 +3,9 @@
 Created on Sun Nov  6 20:03:48 2022
 
 @author: cariefrantz
+
+Uses air and water pressure data to calculate water depth
+
 """
 
 ####################

@@ -295,6 +295,7 @@ def plotData(data, xcol, ycol, xlabel, ylabel, title, ax = [],
         Table containing the x and y data
     xcol : str
         Name of the dataframe column containing the x data
+        'index' pulls x data from the dataframe index
     ycol : str
         Name of the dataframe column containing the y data
     xlabel : str
@@ -333,7 +334,10 @@ def plotData(data, xcol, ycol, xlabel, ylabel, title, ax = [],
     fig=[]
 
     # Select columns
-    xdata = data[xcol].values 
+    if xcol == 'index':
+        xdata=data.index.values
+    else:
+        xdata = data[xcol].values 
     ydata = data[ycol].values
     
     # Convert timeseries data
