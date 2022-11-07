@@ -183,5 +183,5 @@ if __name__ == '__main__':
         
         # Show and save the figure
         fig.show()
-        fig.savefig(plot + '.png')
-        fig.savefig(plot + '.svg')
+        fig.savefig(dirpath + '/' + plot + '.png')
+        fig.savefig(dirpath + '/' + plot + '.svg')

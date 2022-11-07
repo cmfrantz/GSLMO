@@ -27,8 +27,8 @@ density_max = 1.17
 density_min = 1.08
 
 # File import details
-col_air_dt = 'DateTime'
-col_air_pressure_abs_in = 'AbsPressure(in)'
+col_air_dt = 'Time'
+col_air_pressure_abs_in = 'P_avg_inHg'
 col_water_dt = 'Datetime'
 col_water_pressure_kPa = 'P_abs'
 
@@ -51,9 +51,14 @@ if __name__ == '__main__':
         'Select file with water pressure data (Site B pendant)',
         directory=dirpath)
     
+    # Convert indices to timeseries
+    air_data.index = pd.to_datetime(air_data.index, errors='coerce')
+    water_data.set_index(col_water_dt, inplace=True)
+    water_data.index = pd.to_datetime(water_data.index, errors='coerce')
+    
     # Get appropriate data
     air_data['P_air_abs_inHg'] = air_data[col_air_pressure_abs_in]
-    water_data['P_water_kPa'] = col_water_pressure_kPa
+    water_data['P_water_kPa'] = water_data[col_water_pressure_kPa]
     
     # Convert pressure units
     air_data['P_air_abs_Nm2'] = ResearchModules.inHg_to_Nm2(
@@ -64,15 +69,14 @@ if __name__ == '__main__':
     # Resample timeseries to 15 min & combine
     air_data_rs = air_data.resample('15T').mean()
     water_data_rs = water_data.resample('15T').mean()
-    data_merged = pd.merge_asof(
-        air_data, water_data, left_on=col_air_dt, right_on=col_water_dt,
-        direction='nearest')    
+    data_merged = air_data_rs.merge(
+        water_data_rs, left_index=True, right_index=True, how='outer')  
     
     # Calculate depth
     data_merged['depth_min'] = ResearchModules.calcDepth(
-        data_merged['P_water_Nm2'], data_merged['P_air_Nm2'], density_max)
+        data_merged['P_water_Nm2'], data_merged['P_air_abs_Nm2'], density_max)
     data_merged['depth_max'] = ResearchModules.calcDepth(
-        data_merged['P_water_Nm2'], data_merged['P_air_Nm2'], density_min)
+        data_merged['P_water_Nm2'], data_merged['P_air_abs_Nm2'], density_min)
     
     # Save combined file with calculated depths
     data_merged.to_csv(dirpath + '/water_air_merged_wDepth.csv')
