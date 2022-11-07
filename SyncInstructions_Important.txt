@@ -1,2 +1,0 @@
-Overwrite desktop version with any edits made here,
-then sync via GitHub
