@@ -149,7 +149,7 @@ ws_elevations = {
 directory = os.getcwd()
 
 # Types of input files and available variables
-filelist_all = {
+filelist_HOBO_loggers = {
     'Site A'    : ['HOBO pendant', 'HOBO button top (A)'],
     'Site B'    : ['HOBO pendant', 'HOBO button top (B)',
                    'HOBO button side (C)']
@@ -520,9 +520,9 @@ def load_new_HOBO_files():
     directory = os.getcwd()
     HOBOfiles = {}
     # Ask user for each file, load files
-    for loc in filelist_all:
+    for loc in filelist_HOBO_loggers:
         HOBOfiles[loc] = {}
-        for file in filelist_all[loc]:
+        for file in filelist_HOBO_loggers[loc]:
             if input('Load ' + loc + ' ' + file + ' file? Y/N  > ') == 'Y':
                 filename, directory, HOBOfiles[loc][file] = (
                     ResearchModules.fileGet(
