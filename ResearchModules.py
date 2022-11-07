@@ -405,7 +405,7 @@ the PlotData function.''')
 
 
 ###############
-# UNIT CONVERSIONS AND COMMON CALCULATIONS
+# COMMON CALCULATIONS
 
 def round1SF(list):
     '''Round a list of numerical values to 1 significant figure'''
@@ -523,36 +523,6 @@ def makeLogspace(**kwargs):
     return np.logspace(minval, maxval, num = n, endpoint = True, base = 10)
 
 
-def C_to_K(temp_C):
-    '''Converts temperature in C to absolute temperature in Kelvin'''
-    T_K = temp_C + 273.15
-    return T_K
-
-
-def F_to_C(temp_F):
-    '''Converts temperature in Fahrenheit to temperature in Celsius'''
-    T_C = (temp_F-32)*5/9
-    return T_C
-
-
-def ft_to_m(ft):
-    '''Converts feet to meters'''
-    m = ft/3.281
-    return m
-
-
-def inch_to_cm(inch):
-    '''Concerts inches to cm'''
-    cm = inch*2.54
-    return cm
-
-
-def lumft_to_lux(lumft):
-    '''Converts lumen/ft2 to lux (lumen/m2)'''
-    lux = lumft * 10.764
-    return lux
-
-
 def convert_pressure(elev_m, T_C, P, conv_type):
     '''
     Converts weather station-reported pressures between absolute (at station)
@@ -600,6 +570,76 @@ def convert_pressure(elev_m, T_C, P, conv_type):
     return P_out
 
 
-def calcDepth(water_pressure, air_pressure, density):
-    depth = (water_pressure - air_pressure) * density / gravity_factor
+def calcDepth(water_pressure_Nm2, air_pressure_Nm2, density_gcm3):
+    '''
+    Calculates water depth from measured water and air pressure, plus density
+
+    Parameters
+    ----------
+    water_pressure_Nm2 : int
+        Water pressure in units of newtons per m^2.
+    air_pressure_Nm2 : int
+        Air pressure in units of newtons per m^2.
+    density_gcm3 : int
+        Water density in g/cm^3.
+
+    Returns
+    -------
+    depth : int
+        Water depth in meters.
+        
+    '''
+    depth = ((water_pressure_Nm2 - air_pressure_Nm2) / 
+             (density_gcm3 * gravity_factor * 1000))
     return depth
+
+
+###############
+# UNIT CONVERSIONS
+
+def C_to_K(temp_C):
+    '''Converts temperature in C to absolute temperature in Kelvin'''
+    T_K = temp_C + 273.15
+    return T_K
+
+
+def F_to_C(temp_F):
+    '''Converts temperature in Fahrenheit to temperature in Celsius'''
+    T_C = (temp_F-32)*5/9
+    return T_C
+
+
+def ft_to_m(ft):
+    '''Converts feet to meters'''
+    m = ft/3.281
+    return m
+
+
+def inch_to_cm(inch):
+    '''Concerts inches to cm'''
+    cm = inch*2.54
+    return cm
+
+
+def lumft_to_lux(lumft):
+    '''Converts lumen/ft2 to lux (lumen/m2)'''
+    lux = lumft * 10.764
+    return lux
+
+
+def inHg_to_kPa(P_inHg):
+    '''Converts pressure in inches mercury to kPa'''
+    P_kPa = P_inHg * 3.386
+    return P_kPa
+
+
+def inHg_to_Nm2(P_inHg):
+    '''Converts pressure in inches mercury to newtons/m^2'''
+    P_Nm2 = P_inHg * 3386
+    return P_Nm2
+
+
+def kPa_to_Nm2(P_kPa):
+    '''Converts pressure in kPascals to newtons/m^2'''
+    P_Nm2 = P_kPa*1E3
+    return P_Nm2

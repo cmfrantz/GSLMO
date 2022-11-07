@@ -47,6 +47,11 @@ Dependencies Install:
 
 
 """
+
+#######################
+# IMPORTS
+#######################
+
 import os
 import requests
 from bs4 import BeautifulSoup
