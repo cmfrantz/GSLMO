@@ -43,9 +43,17 @@ if __name__ == '__main__':
         data[P_col] = pd.to_numeric(data[P_col], errors='coerce')
         # Resample to 15 minute intervals
         stationdata[station] = data[P_col].dropna().resample('15T').mean()
+        stationdata[station] = stationdata[station].to_frame()
     
     # Average both when both available
-    # !! THIS ISN'T WORKING, NOT SURE WHY
-    stationdata_merged = pd.merge_asof(
-        stationdata[list(stationdata)[0]], stationdata[list(stationdata)[1]], direction='nearest')
+    stationdata_merged = stationdata[list(stationdata)[0]].merge(
+        stationdata[list(stationdata)[1]], on='Time', how='outer')
+    stationdata_merged.rename(
+        columns=dict(zip(list(stationdata_merged.columns),stations)),
+        inplace=True)
+    stationdata_merged['P_avg_inHg'] = stationdata_merged.mean(axis=1)
+    
+    # Save the dataframe as a new file
+    stationdata_merged.to_csv(
+        dirpath + '/' + '-'.join(stations) + '_Pdata_merged.csv')
 
