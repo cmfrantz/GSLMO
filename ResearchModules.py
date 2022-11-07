@@ -338,7 +338,8 @@ def plotData(data, xcol, ycol, xlabel, ylabel, title, ax = [],
     
     # Convert timeseries data
     if xtype=='datetime':
-        xdata = [datetime.strptime(date, datefmt) for date in xdata]
+        xdata = pd.to_datetime(xdata, errors='coerce')
+        # xdata = [datetime.strptime(date, datefmt, errors='coerce') for date in xdata]
     else:
         xdata = pd.to_numeric(ydata, errors='coerce')
     
@@ -526,6 +527,30 @@ def C_to_K(temp_C):
     '''Converts temperature in C to absolute temperature in Kelvin'''
     T_K = temp_C + 273.15
     return T_K
+
+
+def F_to_C(temp_F):
+    '''Converts temperature in Fahrenheit to temperature in Celsius'''
+    T_C = (temp_F-32)*5/9
+    return T_C
+
+
+def ft_to_m(ft):
+    '''Converts feet to meters'''
+    m = ft/3.281
+    return m
+
+
+def inch_to_cm(inch):
+    '''Concerts inches to cm'''
+    cm = inch*2.54
+    return cm
+
+
+def lumft_to_lux(lumft):
+    '''Converts lumen/ft2 to lux (lumen/m2)'''
+    lux = lumft * 10.764
+    return lux
 
 
 def convert_pressure(elev_m, T_C, P, conv_type):
