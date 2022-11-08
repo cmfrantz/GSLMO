@@ -65,6 +65,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 ####################
 
 import ResearchModules
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -287,7 +288,7 @@ files = {
 # MAIN FUNCTION
 ####################
 if __name__ == '__main__': 
-    '''
+    
     # Load in files
     dirpath = os.getcwd()
     for file in files:
@@ -296,8 +297,9 @@ if __name__ == '__main__':
             'Select file with data for ' + files[file]['title'],
             directory=dirpath)
         files[file]['data'] = data
-    '''
     
+    
+    '''
     # !! COMMENT THIS PART OUT FOR NORMAL USE
     # Load in files from pre-defined filepaths
     print('Loading files...')
@@ -306,6 +308,7 @@ if __name__ == '__main__':
         files[file]['data'] = pd.read_csv(dirpath+'/'+files[file]['fname'])
         
     #######
+    '''
     
     # Plot figures
     for plot in plots:
