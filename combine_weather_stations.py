@@ -21,7 +21,9 @@ import pandas as pd
 # VARIABLES
 ####################
 stations = ['KUTSYRAC22','KUTSYRAC27']
-P_col = 'Pressure (in)'
+col_P = 'Pressure (in)'
+col_precip = 'Precip. Accum. (in)'
+cols = [col_P, col_precip]
 
 #%%
 ####################
@@ -32,6 +34,7 @@ if __name__ == '__main__':
     # Read in & process files
     dirpath = os.getcwd()
     stationdata = {}
+    col_list=[]
     for station in stations:
         # Read in file
         filename, dirpath, data = ResearchModules.fileGet(
@@ -40,20 +43,25 @@ if __name__ == '__main__':
         # Format timestamp
         data.index = pd.to_datetime(data.index, errors='coerce')
         # Format the rest
-        data[P_col] = pd.to_numeric(data[P_col], errors='coerce')
+        for col in cols:
+            data[col] = pd.to_numeric(
+                data[col], errors='coerce')
         # Resample to 15 minute intervals
-        stationdata[station] = data[P_col].dropna().resample('15T').mean()
-        stationdata[station] = stationdata[station].to_frame()
+        col_list.extend([station + '_' + col for col in cols])
+        stationdata[station] = data[cols].dropna().resample('15T').mean()
     
-    # Average both when both available
+    # Merge both series on timestamp
     stationdata_merged = stationdata[list(stationdata)[0]].merge(
         stationdata[list(stationdata)[1]], on='Time', how='outer')
     stationdata_merged.rename(
-        columns=dict(zip(list(stationdata_merged.columns),stations)),
+        columns=dict(zip(list(stationdata_merged.columns),col_list)),
         inplace=True)
-    stationdata_merged['P_avg_inHg'] = stationdata_merged.mean(axis=1)
+    
+    # Average values when both are available
+    for n, col in enumerate(cols):
+        stationdata_merged['avg_' + col] = stationdata_merged[[col_list[n], col_list[len(cols)+n]]].mean(axis=1)
     
     # Save the dataframe as a new file
     stationdata_merged.to_csv(
-        dirpath + '/' + '-'.join(stations) + '_Pdata_merged.csv')
+        dirpath + '/' + '-'.join(stations) + '_P-precip_data_merged.csv')
 
