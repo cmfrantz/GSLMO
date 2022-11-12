@@ -147,7 +147,7 @@ plots = {
             }
         }
     },
-    'temp': {
+    'temp_all': {
         'ytitle': 'Temperature (' + chr(176) + 'C)',
         'ylim': 'auto',
         'datasets': {
@@ -209,6 +209,88 @@ plots = {
             }
         }
     },
+    'temp_B': {
+        'ytitle'    : 'Temperature (C)',
+        'ylim'      :     'auto',
+        'datasets'  : {
+            'Site B Pendant': {
+                'file': 'site_B_pend',
+                'ycol': 'T_C',
+                'conv': 'none',
+                'style': 'line',
+                'axis': 1
+                },
+            'Site B Button B (top)': {
+                'file': 'site_B_butt_B',
+                'ycol': 'T_F',
+                'conv': 'F_to_C',
+                'style': 'line',
+                'axis': 1
+                },
+            'Site B Button C (side)': {
+                'file': 'site_B_butt_C',
+                'ycol': 'T_F',
+                'conv': 'F_to_C',
+                'style': 'line',
+                'axis': 1
+                },
+            'KUTSYRAC22' : {
+                'file': 'KUTSYRAC22',
+                'ycol': 'Temperature (F)',
+                'conv': 'F_to_C',
+                'style': 'line',
+                'axis': 1
+                },
+            'KUTSYRAC27' : {
+                'file': 'KUTSYRAC27',
+                'ycol': 'Temperature (F)',
+                'conv': 'F_to_C',
+                'style': 'line',
+                'axis': 1
+                },
+            'Manual measurements - top': {
+                'file': 'manual_data',
+                'ycol': 'T_top_C',
+                'conv': 'none',
+                'style': 'dots',
+                'axis': 1
+                },
+            'Manual measurements - mid': {
+                'file': 'manual_data',
+                'ycol': 'T_mid_C',
+                'conv': 'none',
+                'style': 'dots',
+                'axis': 1
+                },
+            'Manual measurements - bott': {
+                'file': 'manual_data',
+                'ycol': 'T_bot_C',
+                'conv': 'none',
+                'style': 'dots',
+                'axis': 1
+                }
+            }
+        },
+    'Precip': {
+        'ytitle' : 'Accumulated daily precipitation (cm)',
+        'ylim' : 'auto',
+        'datasets' : {
+            'KUTSYRAC22' : {
+                'file': 'KUTSYRAC22',
+                'ycol': 'Precip. Accum. (in)',
+                'conv': 'in_to_cm',
+                'style': 'line',
+                'axis': 1
+                },
+            'KUTSYRAC27' : {
+                'file': 'KUTSYRAC27',
+                'ycol': 'Precip. Accum. (in)',
+                'conv': 'in_to_cm',
+                'style': 'line',
+                'axis': 1
+                }
+            }
+        },
     'light': {
         'ytitle': 'Light intensity (lumen/ft2)',
         'ylim': 'auto',
@@ -259,61 +341,75 @@ plots = {
 }
 
 # Datasets to draw from
-dirpath = 'C:/Users/cariefrantz/Desktop/GSL Analysis'
+dirpath = (
+    'C:/Users/cariefrantz/Desktop/GSL Analysis/Timeseries Field & Logger Data')
 files = {
     'elevation_Saltair': {
         'title': 'Elevation at Saltair (USGS)',
         'xcol': '20d',
         'datefmt': '%m/%d/%Y %H:%M',
         'fname': 'Elev_Saltair_071001-220925.csv'
-    },
+        },
     'elevation_Causeway': {
         'title': 'Elevation S of RR causeway near Lakeside (USGS)',
         'xcol': '20d',
         'datefmt': '%m/%d/%Y %H:%M',
         'fname': 'Elev_Causeway_191028-221027.csv'
-    },
+        },
     'site_A_pend': {
         'title': 'Site A Pendant',
         'xcol': 'Datetime',
         'datefmt': '%m/%d/%Y %H:%M',
         'fname': 'SiteB_Pendant_combined_QC.csv'
-    },
+        },
     'site_A_butt_A': {
         'title': 'Site A Button A (top)',
         'xcol': 'Datetime',
         'datefmt': '%m/%d/%Y %H:%M',
         'fname': 'SiteA_ButtonA_combined_QC.csv'
-    },
+        },
     'site_B_pend': {
         'title': 'Site B Pendant',
         'xcol': 'Datetime',
         'datefmt': '%m/%d/%Y %H:%M',
         'fname': 'SiteB_Pendant_combined_QC.csv'
-    },
+        },
     'site_B_butt_B': {
         'title': 'Site B Button B (top)',
         'xcol': 'Datetime',
         'datefmt': '%m/%d/%Y %H:%M',
         'fname': 'SiteB_ButtonB_combined_QC.csv'
-    },
+        },
     'site_B_butt_C': {
         'title': 'Site B Button C (side)',
         'xcol': 'Datetime',
         'datefmt': '%m/%d/%Y %H:%M',
         'fname': 'SiteB_ButtonC_combined_QC.csv'
-    },
+        },
     'manual_data': {
         'title': 'Manual field measurements',
         'xcol': 'Datetime',
         'datefmt': '%m/%d/%Y %H:%M',
         'fname': 'field_monitoring_data_fmttd_B.csv'
-    },
+        },
     'site_depths': {
         'title': 'Calculated field site depths',
         'xcol': '20d',
-        'datefmt': '%m/%d/%Y %H:%M:%S',
-        'fname': 'daily_site_depth_calc.csv'}
+        'datefmt': '%m/%d/%Y',
+        'fname': 'daily_site_depth_calc.csv'
+        },
+    'KUTSYRAC22': {
+        'title': 'KUTSYRAC22 weather station data',
+        'xcol': 'Time',
+        'datefmt': '%m/%d/%Y %H:%M',
+        'fname': 'KUTSYRAC22_190301-201122.csv'
+        },
+    'KUTSYRAC27': {
+        'title': 'KUTSYRAC27 weather station data',
+        'xcol': 'Time',
+        'datefmt': '%m/%d/%Y %H:%M',
+        'fname': 'KUTSYRAC27_200901-221106.csv'
+        },
 }
 
 
