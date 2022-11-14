@@ -68,7 +68,7 @@ import ResearchModules
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime
+# from datetime import datetime
 
 
 ####################
@@ -84,8 +84,12 @@ months = mdates.MonthLocator()
 years_fmt = mdates.DateFormatter('%Y')
 date_ranges = [
     ['2019-03-01', '2022-10-20'],
+    ['2019-07-01', '2019-08-31'],
+    ['2020-07-01', '2020-08-31'],
+    ['2021-07-01', '2021-08-31'],
     ['2021-07-21', '2021-08-12'],
     ['2021-09-27', '2021-11-12'],
+    ['2022-07-01', '2022-08-31'],
     ['2022-07-12', '2022-08-02'],
     ['2022-07-12', '2022-10-20']
 ]
@@ -102,14 +106,14 @@ plots = {
                 'conv': 'ft_to_m',
                 'style': 'line',
                 'axis': 1,
-            },
+                },
             'elevation at Causeway': {
                 'file': 'elevation_Causeway',
                 'ycol': '14n',
                 'conv': 'ft_to_m',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Water depth measured at Site B (m)': {
                 'file': 'manual_data',
                 'ycol': 'water_depth_m',
@@ -117,9 +121,9 @@ plots = {
                 'style': 'dots',
                 'axis': 2,
                 'ylim': [-1.25, 1.75]
+                }
             }
-        }
-    },
+        },
     'depth': {
         'ytitle': 'Water depth (m)',
         'ylim': 'auto',
@@ -130,23 +134,23 @@ plots = {
                 'conv': 'none',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Site B3': {
                 'file': 'site_depths',
                 'ycol': 'depth_B3',
                 'conv': 'none',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Manual measurements': {
                 'file': 'manual_data',
                 'ycol': 'water_depth_m',
                 'conv': 'none',
                 'style': 'dots',
                 'axis': 1
+                }
             }
-        }
-    },
+        },
     'temp_all': {
         'ytitle': 'Temperature (' + chr(176) + 'C)',
         'ylim': 'auto',
@@ -157,58 +161,58 @@ plots = {
                 'conv': 'none',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Site A Button A (top)': {
                 'file': 'site_A_butt_A',
                 'ycol': 'T_F',
                 'conv': 'F_to_C',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Site B Pendant': {
                 'file': 'site_B_pend',
                 'ycol': 'T_C',
                 'conv': 'none',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Site B Button B (top)': {
                 'file': 'site_B_butt_B',
                 'ycol': 'T_F',
                 'conv': 'F_to_C',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Site B Button C (side)': {
                 'file': 'site_B_butt_C',
                 'ycol': 'T_F',
                 'conv': 'F_to_C',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Manual measurements - top': {
                 'file': 'manual_data',
                 'ycol': 'T_top_C',
                 'conv': 'none',
                 'style': 'dots',
                 'axis': 1
-            },
+                },
             'Manual measurements - mid': {
                 'file': 'manual_data',
                 'ycol': 'T_mid_C',
                 'conv': 'none',
                 'style': 'dots',
                 'axis': 1
-            },
+                },
             'Manual measurements - bott': {
                 'file': 'manual_data',
                 'ycol': 'T_bot_C',
                 'conv': 'none',
                 'style': 'dots',
                 'axis': 1
+                }
             }
-        }
-    },
+        },
     'temp_B': {
         'ytitle'    : 'Temperature (C)',
         'ylim'      :     'auto',
@@ -278,14 +282,14 @@ plots = {
             'KUTSYRAC22' : {
                 'file': 'KUTSYRAC22',
                 'ycol': 'Precip. Accum. (in)',
-                'conv': 'in_to_cm',
+                'conv': 'inch_to_cm',
                 'style': 'line',
                 'axis': 1
                 },
             'KUTSYRAC27' : {
                 'file': 'KUTSYRAC27',
                 'ycol': 'Precip. Accum. (in)',
-                'conv': 'in_to_cm',
+                'conv': 'inch_to_cm',
                 'style': 'line',
                 'axis': 1
                 }
@@ -301,23 +305,23 @@ plots = {
                 'conv': 'lumft_to_lux',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Site B Button B (top)': {
                 'file': 'site_B_butt_B',
                 'ycol': 'lumen_sqft',
                 'conv': 'lumft_to_lux',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Site B Button C (side)': {
                 'file': 'site_B_butt_C',
                 'ycol': 'lumen_sqft',
                 'conv': 'lumft_to_lux',
                 'style': 'line',
                 'axis': 1
+                }
             }
-        }
-    },
+        },
     'pressure': {
         'ytitle': 'Absolute pressure (in Hg)',
         'ylim': 'auto',
@@ -328,17 +332,17 @@ plots = {
                 'conv': 'none',
                 'style': 'line',
                 'axis': 1
-            },
+                },
             'Site B Pendant': {
                 'file': 'site_B_pend',
                 'ycol': 'P_abs',
                 'conv': 'none',
                 'style': 'line',
                 'axis': 1
-            },
+                },
+            }
         }
     }
-}
 
 # Datasets to draw from
 dirpath = (
@@ -526,7 +530,7 @@ def plot_timeseries(data_files, plots=plots, dirpath=dirpath):
             dset = data_files[file]['data'].copy()
             dset['ydata'] = dset[
                 plots[plot]['datasets'][var]['ycol'] + '_conv']
-            dset['dt'] = dset[files[file]['xcol']]
+            dset['dt'] = data_files[file]['data'].index
 
             # Plot the data
             # If specified, plot as a scatterplot
