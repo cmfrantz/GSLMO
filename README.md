@@ -33,7 +33,9 @@ The following scripts are called by several of the main scripts listed above. Do
 <tr><td>ResearchModules_old.py</td><td>Contains code for timeseries plots no longer used by DataProcessing script.</td></tr>
 </table>
 
-## Setting up
+## Setting up & running
+### Python scripts (*.py)
+#### Packages
 The code for this project requires the following list of packages in order to run.
 <ul>
 <li>beautifulsoup4</li>
@@ -66,10 +68,17 @@ To install using pip, execute the command:
 	
 ...and so on
 
-## Running
+#### Running
 Once python and the packages listed above have been installed, to run a script from command line, execute the command:
 
 	python DensityDiff.py
 	python WebTaxBarplotsSimple.py
 	
 ...and so on
+
+### ImageJ macros (*.ijm)
+<ol>
+<li>Install ImageJ. I recommend the <a href="https://imagej.net/software/fiji/downloads">Fiji package</a>.</li>
+<li>Download the macros and image files to seperate folders.</li>
+<li>In ImageJ, Plugins -> Macros -> Run..., select the macro file, then select the directory containing the iamges to process.</li>
+</ol>
