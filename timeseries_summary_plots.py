@@ -677,4 +677,4 @@ if __name__ == '__main__':
     data_files = load_files(filelist='GUI', dir=os.get_cwd())
     '''
     plot_timeseries(data_files)
-    summarize_timeseries(data_files)
++    summarize_timeseries(data_files)
