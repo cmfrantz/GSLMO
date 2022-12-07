@@ -68,6 +68,9 @@ import ResearchModules
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
 # from datetime import datetime
 
 
@@ -76,12 +79,13 @@ import matplotlib.dates as mdates
 ####################
 
 # Plot default variables
-plotsize_default = (12, 6)
+plotsize_default = (12, 4)
 
 # Formatting for datetime axis
 years = mdates.YearLocator()
 months = mdates.MonthLocator()
 years_fmt = mdates.DateFormatter('%Y')
+plot_date_range = ['2019-01-01', '2023-01-01']
 date_ranges = [
     ['2019-03-01', '2022-10-20'],
     ['2019-07-01', '2019-08-31'],
@@ -296,7 +300,7 @@ plots = {
             }
         },
     'light': {
-        'ytitle': 'Light intensity (lumen/ft2)',
+        'ytitle': 'Light intensity (lux)',
         'ylim': 'auto',
         'datasets': {
             'Site A Button A (top)': {
@@ -341,12 +345,47 @@ plots = {
                 'axis': 1
                 },
             }
+        },
+    'salinity': {
+        'ytitle': 'Salinity (%)',
+        'ylim': 'auto',
+        'datasets': {
+            'Water surface': {
+                'file': 'manual_data',
+                'ycol': 'Water surface.5',
+                'conv': 'none',
+                'style': 'dots',
+                'axis': 1
+                },
+            'Mid': {
+                'file': 'manual_data',
+                'ycol': 'Mid (if diff. from max vis).4',
+                'conv': 'none',
+                'style': 'dots',
+                'axis': 1
+                },
+            'MVD': {
+                'file': 'manual_data',
+                'ycol': 'Max visible depth.5',
+                'conv': 'none',
+                'style': 'dots',
+                'axis': 1
+                },
+            'Sed-water interface': {
+                'file': 'manual_data',
+                'ycol': 'Sed/water interface.5',
+                'conv': 'none',
+                'style': 'dots',
+                'axis': 1
+                }
+            }
         }
     }
 
 # Datasets to draw from
 dirpath = (
-    'C:/Users/cariefrantz/Desktop/GSL Analysis/Timeseries Field & Logger Data')
+    'G:/My Drive/Teaching, Research, Etc/Research/Great Salt Lake/' + 
+    '2022 Microbialite Desiccation Bio Paper/Timeseries Field & Logger Data')
 files = {
     'elevation_Saltair': {
         'title': 'Elevation at Saltair (USGS)',
@@ -566,6 +605,10 @@ def plot_timeseries(data_files, plots=plots, dirpath=dirpath):
         # Add the legend
         if len(legend) > 1:
             ax.legend(legend)
+            
+        # Set the limits of the x axis
+        # !! This isn't working!
+        # ax_pri.set_xlim(plot_date_range)
 
         # If specified, reset the limits of the y axis
         if plots[plot]['ylim'] != 'auto':
@@ -574,7 +617,7 @@ def plot_timeseries(data_files, plots=plots, dirpath=dirpath):
         # Show and save the figure
         fig.show()
         fig.savefig(dirpath + '/' + plot + '.png')
-        fig.savefig(dirpath + '/' + plot + '.svg')
+        fig.savefig(dirpath + '/' + plot + '.pdf', transparent=True)
 
 
 def summarize_timeseries(data_files, plots=plots, date_ranges=date_ranges,
@@ -677,4 +720,4 @@ if __name__ == '__main__':
     data_files = load_files(filelist='GUI', dir=os.get_cwd())
     '''
     plot_timeseries(data_files)
-+    summarize_timeseries(data_files)
+    summarize_timeseries(data_files)
