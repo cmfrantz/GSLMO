@@ -261,21 +261,55 @@ save(column([Div(text = GSL_elev_head),fig]))
 
 #%%
 '''
-# Save editable figure
-date_start = date(2002,1,1)
+# Save editable figures
+
+# Plot parameters
+convert_to_m = True
+figsize = [8,3]
+date_start = date(1846,1,1)
 date_end = date(2022,12,31)
-fig = plt.figure(figsize=(8,6))
-plt.scatter(elev_data.index, elev_data[col_elev], c='lightgray', s=mkrsize)
-plt.plot(interp.index, interp.values, c='midnightblue')
+plot_points = False
+svd = col_elev
+ylim = [1276,1284]
+
+if convert_to_m:
+    # Convert ft to m
+    for dset in [elev_data_Causeway, elev_data_Saltair, Causeway_interp,
+                 Saltair_interp]:
+        dset['m']=ResearchModules.ft_to_m(dset[col_elev])
+    # Use meters
+    col_elev='m'
+
+# Build plots
+fig = plt.figure(figsize=figsize)
+
+if plot_points:
+    plt.scatter(elev_data_Saltair.index, elev_data_Saltair[col_elev],
+                c='lightgray', s=mkrsize)
+    plt.scatter(elev_data_Causeway.index, elev_data_Causeway[col_elev],
+                c='gray', s=mkrsize)
+
+plt.plot(
+    Saltair_interp.index, Saltair_interp[col_elev].values, c='midnightblue')
+plt.plot(
+    Causeway_interp.index, Causeway_interp[col_elev].values, c='skyblue')
+
+col_elev = svd
 
 hlines = [4195.5, 4193, 4191.5]
 for l in hlines:
+    if convert_to_m:
+        l = ResearchModules.ft_to_m(l)
     plt.plot([date_start, date_end],[l, l])
 
 plt.xlim(date_start, date_end)
-plt.ylim(4190,4200)
+plt.ylim(ylim)
 plt.xlabel('Year')
-plt.ylabel('Elevation (ft)')
+if convert_to_m:
+    plt.ylabel('Elevation (m)')
+else:
+    plt.ylabel('Elevation (ft)')
 plt.rcParams['svg.fonttype'] = 'none'
 fig.savefig('GSL_Elevation.svg', format='svg')
+
 '''
