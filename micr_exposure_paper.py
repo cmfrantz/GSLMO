@@ -11,11 +11,14 @@ Input requirements:
     TSV table of daily average lake elevation data
     
     CSV table of microbialite exposure data with columns
-        Elevation | Confidence | Exposure area m2
+        ELEVATION | HighLow | NorthSouth | SUM_Shape_Area
         (and any additional rows deleted)
         Elevation values represent the lower bound in 1 ft lake elevation
-        increments. Microbialite exposure represents the area of microbialites
-        found between that lower bound and 1' higher
+        increments.
+        HighLow is the confidence level for the mapped shape area.
+        NorthSouth is the arm of the lake.
+        SUM_Shape_Area is the area of microbialites (in m^2) found between
+        the elevation for that row and and 1' higher.
 """
 
 ####################
