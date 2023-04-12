@@ -113,7 +113,7 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
         ftype = [('CSV', '*.csv')]
         sep = ','
     elif file_type == 'tsv':
-        ftype = [('TSV'), '*.tsv, *.txt']
+        ftype = [('TSV', '*.tsv, *.txt')]
         sep = '\t'
     
     # Open user input file dialog to pick file
@@ -131,7 +131,7 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
     return filename, dirPath, data
 
 
-def download_lake_elevation_data(sdate_min, sdate_max, site=10010000):
+def download_lake_elevation_data(sdate_min, sdate_max, site, row_head):
     """
     This function downloads lake elevation data at Saltair from the USGS
     waterdata web interface
@@ -158,18 +158,18 @@ def download_lake_elevation_data(sdate_min, sdate_max, site=10010000):
     
     # Generate URL
     data_URL = ("https://waterdata.usgs.gov/nwis/dv?cb_62614=on&format=rdb" +
-                 "&site_no=" + str(site) + "&referred_module=sw&period=" +
-                 "&begin_date=" + sdate_min +
-                 "&end_date=" + sdate_max)
+                "&site_no=" + str(site) + "&referred_module=sw&period=" +
+                "&begin_date=" + sdate_min +
+                "&end_date=" + sdate_max)
     
-    data_URL = ("https://nwis.waterservices.usgs.gov/nwis/iv/" + 
-                "?sites=" + str(site) + "&parameterCd=62614" +
-                "&startDT=" + sdate_min +
-                "&endDT=" + sdate_max +
-                "&siteStatus=all&format=rdb")
+    # data_URL = ("https://nwis.waterservices.usgs.gov/nwis/iv/" + 
+    #            "?sites=" + str(site) + "&parameterCd=62614" +
+    #            "&startDT=" + sdate_min +
+    #            "&endDT=" + sdate_max +
+    #            "&siteStatus=all&format=rdb")
     
     # Load in website data
-    elev_data = pd.read_csv(data_URL, sep = '\t', header = 28)
+    elev_data = pd.read_csv(data_URL, sep = '\t', header = row_head)
     
     # Save timestamps as index and convert date format
     elev_data['date'] = pd.to_datetime(elev_data['20d'])
@@ -177,6 +177,7 @@ def download_lake_elevation_data(sdate_min, sdate_max, site=10010000):
     elev_data.set_index('date', drop=True, inplace=True)
     
     return elev_data
+
 
 
 def combineFiles(filelist, sep=',', header=0, force_cols=False):

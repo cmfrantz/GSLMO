@@ -5,7 +5,8 @@ Created on Sat Jul 24 10:21:06 2021
 @author: cariefrantz
 
 Updates the HTML page of historical lake elevation at from USGS data.
-Data from 1847-2022 is from Saltair site 10010000, which went dry in 2022
+Data from 1847-2022 is from Saltair site 10010000, which went dry in 09-2022,
+    then re-submerged in 12-2022
 Data from 2019-     is from Lakeside causeway site 10010024
 
 """
@@ -36,7 +37,18 @@ directory = os.getcwd()     # Directory for saving the page
 
 # Download URLs
 olddata_html = 'https://faculty.weber.edu/cariefrantz/GSL/LakeElevationSaltair.csv'
-cw_site = 10010024
+USGS_sites = {
+    'Saltair'   : {
+        'station_id'    : 10010000,
+        'date_start'    : '2022-12-15',
+        'row_head'      : 28
+        },
+    'Causeway'  : {
+        'station_id'    : 10010024,
+        'date_start'    : '2019-10-03',
+        'row_head'      : 28
+        }
+    }
 
 # Data parsing
 datefmt = '%Y-%m-%d'
@@ -45,7 +57,7 @@ col_elev = '14n'            # Header row value for the elevation colum
 col_dtype = '10s'           # Header row value for the data type/status
 
 # Data analysis
-rec_first = '1847-10-18'    # Date of first measurement in the dataset
+rec_first = '1847-10-18'    # Date of first measurement in the historic dataset
 pi_start = '1850'           # Designate start of 'pre-industrial' period
 pi_end = '1900'             # Designate end of 'pre-industrial' period
 hist_start = '1900'         # Designate start of 'historical' period
@@ -151,16 +163,23 @@ elev_data_Saltair['date'] = pd.to_datetime(elev_data_Saltair['20d'])
 elev_data_Saltair['20d'] = elev_data_Saltair['date'].dt.strftime('%Y-%m-%d')
 elev_data_Saltair.set_index('date', drop=True, inplace=True)
 
+# Download and add the recent elevation data from the Saltair station
+print('\nDownloading Saltair elevation data...')
+elev_data_Saltair2 = ResearchModules.download_lake_elevation_data(
+    USGS_sites['Saltair']['date_start'], date.today().strftime(datefmt),
+    USGS_sites['Saltair']['station_id'], USGS_sites['Saltair']['row_head'])
+
 # Download the elevation data for the new Lakeside station
 print('\nDownloading Causeway elevation data...')
 elev_data_Causeway = ResearchModules.download_lake_elevation_data(
-    cw_first, date.today().strftime(datefmt), cw_site)
+    USGS_sites['Causeway']['date_start'], date.today().strftime(datefmt),
+    USGS_sites['Causeway']['station_id'], USGS_sites['Causeway']['row_head'])
 
 #%%
 
 print('\nParsing data...')
 
-# Historical (Saltair) data
+# Saltair data
 daily_elev_data_Saltair, Saltair_interp, Saltair_source = prepElevationData(
     elev_data_Saltair)
 # Pre-industrial
@@ -260,17 +279,17 @@ output_file(directory + '\\GSL_elevation.html')
 save(column([Div(text = GSL_elev_head),fig]))
 
 #%%
-'''
+
 # Save editable figures
 
 # Plot parameters
-convert_to_m = True
-figsize = [8,3]
-date_start = date(1846,1,1)
-date_end = date(2022,12,31)
+convert_to_m = False
+figsize = [8,4]
+date_start = date(2005,1,1)
+date_end = date(2015,1,1)
 plot_points = False
 svd = col_elev
-ylim = [1276,1284]
+ylim = [4193,4200]
 
 if convert_to_m:
     # Convert ft to m
@@ -296,11 +315,12 @@ plt.plot(
 
 col_elev = svd
 
+# Add horizontal marker lines
 hlines = [4195.5, 4193, 4191.5]
-for l in hlines:
-    if convert_to_m:
-        l = ResearchModules.ft_to_m(l)
-    plt.plot([date_start, date_end],[l, l])
+#for l in hlines:
+#    if convert_to_m:
+#        l = ResearchModules.ft_to_m(l)
+#    plt.plot([date_start, date_end],[l, l])
 
 plt.xlim(date_start, date_end)
 plt.ylim(ylim)
@@ -312,4 +332,3 @@ else:
 plt.rcParams['svg.fonttype'] = 'none'
 fig.savefig('GSL_Elevation.svg', format='svg')
 
-'''
