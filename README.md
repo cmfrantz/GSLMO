@@ -1,5 +1,5 @@
 # GSL
-Great Salt Lake data analysis scripts
+Great Salt Lake data analysis scripts used for Great Salt Lake Microbialite Observatory data processing
 by Carie Frantz cariefrantz@weber.edu
 
 ## List of scripts
