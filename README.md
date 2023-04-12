@@ -18,6 +18,7 @@ by Carie Frantz cariefrantz@weber.edu
 <tr><td>precip_totals.py</td><td>Determines daily precipitation totals from scraped weather data</td><td>Weather station data from WUNDERScrape.py</td><td></td></tr>
 <tr><td>BrightfieldColorProcess.ijm</td><td>Script measures green area in brightfield photomicrographs in a directory.</td><td>All brightfield photomicrograph images (*.tif)</td><td>ImageJ macro</td></tr>
 <tr><td>ConfocalColorProcess.ijm</td><td>Script measures fluorescent area in each channel in *.oir multichannel images.</td><td>All confocal photomicrographs (*.oir)</td><td>ImageJ macro</td></tr>
+<tr><td>micr_exposure_paper.py</td><td>Script processes lake elevation and microbialite mapping data to perform analyses and generate figures used in the 2023 Great Salt Lake Microbialite Extent manuscript.</td><td>tsv table of daily average lake elevation data, csv table of mapped microbialite areas in different elevation bands.</td><td>Researchmodules.py</td></tr>
 </table>
 
 ## Shared scripts
@@ -42,6 +43,8 @@ The code for this project requires the following list of packages in order to ru
 <li>pandas</li>
 <li>progress</li>
 <li>requests</li>
+<li>seaborn</li>
+<li>sklearn</li>
 <li>subprocess</li>
 <li>sys</li>
 <li>time</li>
