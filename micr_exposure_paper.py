@@ -362,7 +362,7 @@ def m2ft(m):
 
 # FIGURE 1B LAKE ELEVATION
 def Figure1B(dirpath, lake_elev, micr_expos_data, conf_level,
-             shade_color=colors['SA all'], alpha_factor=5, ylim=[4172,4216],
+             shade_color=colors['all'], alpha_factor=5, ylim=[4172,4216],
              figsize=[figh*2,figw]):
     
     fig, axs = plt.subplots(2,1,figsize=figsize)
