@@ -9,10 +9,15 @@ Script compiles and summarizes GSL timeseries data, including elevation data
 and HOBO logger data. The script requires files for all of the combined HOBO
 logger data, plus Saltair & Causeway elevation files.
 
+Builds static plots and interactive (plotly) plots, as well as an HTML
+dashboard containing the plotly plots.
+
+Functions are in place to summarize the data, but they are buggy right now.
+
 Elevation files need to have the header text removed, with header columns
     '20d' (timestamp in form %m/%d/%Y %H:%M)
     '14f' (elevation in ft asl)
-HOBO files need to have columns renamed to
+HOBO files need to have columns renamed to:
     'Datetime' (timestamp)
     T_F (temperature in degF)
     lumen_sqft (light in lumens per sqft)
@@ -30,6 +35,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
 import plotly.express as px
+from datetime import date
 
 ####################
 # VARIABLES
@@ -38,6 +44,7 @@ import plotly.express as px
 plotsize_default = (12,6)
 resample_interval = '1d'
 smooth_interval = '7d'
+div_pfx = 'plotly_'
 
 # Formatting for datetime axis
 years = mdates.YearLocator()
@@ -47,82 +54,98 @@ years_fmt = mdates.DateFormatter('%Y')
 # Datasets to plot
 dset_groups = {
     'elev' : {
-        'ytitle' : 'Lake elevation (m asl)',
-        'datasets' : {
+        'title'     : 'Lake elevation',
+        'ytitle'    : 'Lake elevation (m asl)',
+        'datasets'  : {
             'elevation_Saltair' : {
                 'file' : 'elevation_Saltair',
                 'ycol' : '14n',
-                'conv' : 'ft_to_m'
+                'conv' : 'ft_to_m',
+                'title': 'Saltair (USGS 1001000)'
                 },
             'elevation_Causeway' : {
                 'file'  : 'elevation_Causeway',
                 'ycol'  : '14n',
-                'conv'  : 'ft_to_m'
+                'conv'  : 'ft_to_m',
+                'title' : 'Causeway (USGS 10010024)'
                 }
         }
     },
     'temp' : {
-        'ytitle' : 'Temperature (' + chr(176) + 'C)',
-        'datasets' : {
+        'title'     : 'Water temperature',
+        'ytitle'    : 'Temperature (' + chr(176) + 'C)',
+        'datasets'  : {
             'Site A Pendant' : {
                 'file' : 'site_A_pend',
                 'ycol' : 'T_C',
-                'conv' : ''
+                'conv' : '',
+                'title': 'Site A Pendant Logger'
                 },
             'Site A Button A (top)' : {
                 'file' : 'site_A_butt_A',
                 'ycol' : 'T_F',
-                'conv' : 'F_to_C'
+                'conv' : 'F_to_C',
+                'title': 'Site A Button Logger - Top'
                 },
             'Site B Pendant' : {
                 'file' : 'site_B_pend',
                 'ycol' : 'T_C',
-                'conv' : ''
+                'conv' : '',
+                'title': 'Site B Pendant Logger'
                 },
             'Site B Button B (top)' : {
                 'file' : 'site_B_butt_B',
                 'ycol' : 'T_F',
-                'conv' : 'F_to_C'
+                'conv' : 'F_to_C',
+                'title': 'Site B Button Logger - Top'
                 },
             'Site B Button C (side)' : {
                 'file' : 'site_B_butt_C',
                 'ycol' : 'T_F',
-                'conv' : 'F_to_C'
+                'conv' : 'F_to_C',
+                'title': 'Site B Button Logger - Side'
                 }
             }
         },
     'light' : {
-            'ytitle' : 'Light intensity (lumen/ft2)',
-            'datasets' : {
-                'Site A Button A (top)' : {
-                    'file' : 'site_A_butt_A',
-                    'ycol' : 'lumen_sqft',
-                    'conv' : 'lumft_to_lux'
-                    },
-                'Site B Button B (top)' : {
-                    'file' : 'site_B_butt_B',
-                    'ycol' : 'lumen_sqft',
-                    'conv' : 'lumft_to_lux'
-                    },
-                'Site B Button C (side)' : {
-                    'file' : 'site_B_butt_C',
-                    'ycol' : 'lumen_sqft',
-                    'conv' : 'lumft_to_lux'
-                    }
+        'title'     : 'Light intensity (lux)',
+        'ytitle'    : 'Light intensity (lux)',
+        'datasets'  : {
+            'Site A Button A (top)' : {
+                'file' : 'site_A_butt_A',
+                'ycol' : 'lumen_sqft',
+                'conv' : 'lumft_to_lux',
+                'title': 'Site A Downwelling'
+                },
+            'Site B Button B (top)' : {
+                'file' : 'site_B_butt_B',
+                'ycol' : 'lumen_sqft',
+                'conv' : 'lumft_to_lux',
+                'title': 'Site B Downwelling'
+                },
+            'Site B Button C (side)' : {
+                'file' : 'site_B_butt_C',
+                'ycol' : 'lumen_sqft',
+                'conv' : 'lumft_to_lux',
+                'title': 'Site B Sidewelling'
                 }
-            },
+            }
+        },
     'pressure' : {
-        'ytitle' : 'Absolute pressure (in Hg)',
-        'datasets' : {
+        'title'     : 'Pressure (proxy for water depth)',
+        'ytitle'    : 'Absolute pressure (in Hg)',
+        'datasets'  : {
             'Site A Pendant' : {
                 'file' : 'site_A_pend',
                 'ycol' : 'P_abs',
-                'conv' : ''
+                'conv' : '',
+                'title': 'Site A'
                 },
             'Site B Pendant' : {
                 'file' : 'site_B_pend',
                 'ycol' : 'P_abs',
-                'conv' : ''
+                'conv' : '',
+                'title': 'Site B'
                 },
             }
         }
@@ -187,14 +210,123 @@ def loadFiles():
     return dirpath
 
 
+def buildPlots(dirpath):
+    
+    # Build seperate plots for each variable measured
+    for dset in dset_groups:
+        print('Building plots for ' + dset + '...')
+        varset = list(dset_groups[dset]['datasets'])
+        # Merge timeseries into a single dataframe
+        data = pd.DataFrame()
+        for var in varset:
+            print ('   Processing ' + var + '...')
+            smoothed_hourly = formatConvertSmoothData(
+                dset, var, dset_groups[dset]['datasets'][var]['title'])
+            data = pd.concat([data, smoothed_hourly], axis = 1, join='outer')
+            
+        # Build static plot
+        print('   Building static plot...')
+        fig, ax = plt.subplots(1,1)
+        for var in varset:
+            ax.plot(
+                data.index, data[dset_groups[dset]['datasets'][var]['title']],
+                label = dset_groups[dset]['datasets'][var]['title'])
+        ax.legend()
+        plt.xlabel('Date')
+        plt.ylabel(dset_groups[dset]['ytitle'])
+        plt.show()
+        fig.savefig(dirpath + '/' + dset + '.png')
+        fig.savefig(dirpath + '/' + dset + '.svg')
+        
+        # Build interactive plot
+        fig = px.line(data, x=data.index, y=data.columns, title = None,
+                      labels = {
+                                'Timestamp' : 'Date',
+                                'value'     : dset_groups[dset]['ytitle'],
+                                'variable'  : 'data source'
+                                })
+        fig.write_html(dirpath + '/' + div_pfx + dset + '.html', full_html=False)
+        
+        
+def buildHTML(dirpath):
+    print('Building HTML Dashboard...')
+    
+    # Set up HTML page
+    html_head = ('''
+    <!doctype html>
+    <html>
+    <head>
+        <title>GSLMO Dashboard</title>
+    </head>
+    <body>
+        <h1>Great Salt Lake Microbialite Observatory Dashboard</h1>
+        <p>Environmental measurements for the GSLMO</p>
+        <p>Plot by Dr. Carie Frantz, Department of Earth and Environmental Sciences, Weber State University
+        <br />Created using Plotly for Python using the script <a href=""
+        <br />Plot last upadted '''
+        + date.today().strftime('%Y-%m-%d') + '</p>')
+
+    html_body = ''
+    html_foot = '''
+    </body>
+    </html>
+    '''
+    
+    # Load in and append html figure div for each dataset
+    for dset in dset_groups:
+        # Load in and append html
+        with open(dirpath + '/' + div_pfx + dset + '.html', 'r', encoding = 'UTF-8') as file:
+            div_html = file.read()
+        html_body = (
+            html_body + '\n'
+            + '<h1>' + dset_groups[dset]['title'] + '</h1>'
+            + '\n'   + div_html)
+        
+    # Write the combined HTML file
+    html_fullpage = html_head + '\n' + html_body + '\n' + html_foot
+    with open(
+            dirpath + '/' + 'GSLMO_dashboard.html','wt',
+            encoding='utf-8') as file:
+        file.write(html_fullpage)
+    
+    
+
+def formatConvertSmoothData(dset, var, ycol_name):
+    # Get the data
+    file = dset_groups[dset]['datasets'][var]['file']
+    xcol = files[file]['xcol']
+    ycol = dset_groups[dset]['datasets'][var]['ycol']
+    data = files[file]['raw_data'][[xcol,ycol]].copy()
+    convert = dset_groups[dset]['datasets'][var]['conv']
+    
+    # Format the data
+    data.columns = ['Timestamp', ycol_name]
+    print('      Converting timestamps for ' + var + '...')
+    data['Timestamp'] = pd.to_datetime(data['Timestamp'])
+    data[ycol_name] = pd.to_numeric(data[ycol_name], errors='coerce')
+    data.set_index('Timestamp', inplace=True)
+    
+    # Resample the data to hourly values
+    smoothed_hourly = data.resample('1H').mean()
+    
+    # Convert units if needed
+    if convert:
+        fctn = getattr(ResearchModules, convert)
+        smoothed_hourly[ycol_name] = [fctn(x)
+                                    for x in smoothed_hourly[ycol_name]]
+        
+    return smoothed_hourly
+
+
+
 def buildSummaries(dirpath):
     '''
-    Creates static plots, interactive (plotly)
+    Creates static plots, interactive (plotly) plots, and a data sumamry
 
     Parameters
     ----------
-    dirpath : TYPE
-        DESCRIPTION.
+    dirpath : str
+        Base directory where files are stored and saved.
 
     Returns
     -------
@@ -211,9 +343,10 @@ def buildSummaries(dirpath):
     for dset in dset_groups:
         print('Building ' + dset + ' figure...')
         
-        # Create a new figure
+        # Create a new static figure
         fig, ax = plt.subplots(figsize=plotsize_default)
         legend=[]
+
         
         # Plot each line
         for var in dset_groups[dset]['datasets']:
@@ -267,7 +400,7 @@ def buildSummaries(dirpath):
         fig.savefig(dirpath + '/' + dset + '.png')
         fig.savefig(dirpath + '/' + dset + '.svg')
 
-
+    
 
 def summarize_data(data, dt_range='all', time_col='index', ycol='ydata'):
     '''
@@ -329,7 +462,10 @@ if __name__ == '__main__':
    
     # Load files
     dirpath = loadFiles()
-    buildSummaries(dirpath)
+    # Build the summary plots
+    buildPlots(dirpath)
+    # Build the interactive plot HTML page
+    buildHTML(dirpath)
     
 
     
