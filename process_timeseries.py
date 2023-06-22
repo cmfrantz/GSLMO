@@ -29,6 +29,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
+import plotly.express as px
 
 ####################
 # VARIABLES
@@ -96,17 +97,17 @@ dset_groups = {
                 'Site A Button A (top)' : {
                     'file' : 'site_A_butt_A',
                     'ycol' : 'lumen_sqft',
-                    'conv' : 'lumsqft_to_lux'
+                    'conv' : 'lumft_to_lux'
                     },
                 'Site B Button B (top)' : {
                     'file' : 'site_B_butt_B',
                     'ycol' : 'lumen_sqft',
-                    'conv' : 'lumsqft_to_lux'
+                    'conv' : 'lumft_to_lux'
                     },
                 'Site B Button C (side)' : {
                     'file' : 'site_B_butt_C',
                     'ycol' : 'lumen_sqft',
-                    'conv' : 'lumsqft_to_lux'
+                    'conv' : 'lumft_to_lux'
                     }
                 }
             },
@@ -170,19 +171,104 @@ files = {
 ####################
 # SCRIPTS
 ####################
-'''
-def compileData(data):
-    # Smooth to hourly if more frequent, else daily
-    return compiled_data
 
-def summarizeData(data, date_start, date_end):
-    # Calculate min, max, avg with dates
-    return data_summary
+def loadFiles():
+    '''
+    Loads in the files for the dataset
+    '''
+    # Load in files
+    dirpath = os.getcwd()
+    for file in files:
+        # Load in the file
+        filename, dirpath, data = ResearchModules.fileGet(
+            'Select file with data for ' + files[file]['title'], directory=dirpath)
+        files[file]['raw_data'] = data
+    
+    return dirpath
 
-def plotData(data):
-    # Build a timeseries plot
 
-'''
+def buildSummaries(dirpath):
+    '''
+    Creates static plots, interactive (plotly)
+
+    Parameters
+    ----------
+    dirpath : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    '''
+    # Set up the summary
+    data_summary = pd.DataFrame(
+        columns=['Dataset','min_val','min_date','max_val','max_date','median',
+                 'avg','stdev'])
+    data_summary.set_index('Dataset',inplace=True)
+    
+    # Go through data groups and plot static figures, generate summaries
+    for dset in dset_groups:
+        print('Building ' + dset + ' figure...')
+        
+        # Create a new figure
+        fig, ax = plt.subplots(figsize=plotsize_default)
+        legend=[]
+        
+        # Plot each line
+        for var in dset_groups[dset]['datasets']:
+            print ('   Processing ' + var + '...')
+            # Get the data
+            file = dset_groups[dset]['datasets'][var]['file']
+            xcol = files[file]['xcol']
+            ycol = dset_groups[dset]['datasets'][var]['ycol']
+            data = files[file]['raw_data'][[xcol,ycol]].copy()
+            convert = dset_groups[dset]['datasets'][var]['conv']
+            
+            # Format the data
+            data.columns = ['Timestamp','ydata']
+            print('      Converting timestamps for ' + var + '...')
+            data['Timestamp'] = pd.to_datetime(data['Timestamp'])
+            data['ydata'] = pd.to_numeric(data['ydata'], errors='coerce')
+            data.set_index('Timestamp', inplace=True)
+            
+            # Resample the data to hourly values
+            smoothed_hourly = data.resample('1H').mean()
+            
+            # Convert units if needed
+            if convert:
+                fctn = getattr(ResearchModules, convert)
+                smoothed_hourly['ydata'] = [fctn(x)
+                                            for x in smoothed_hourly['ydata']]
+            
+            # Summarize data
+            smoothed_hourly.to_csv(dirpath + var + '_smoothed-hourly.csv')
+            data_summary.loc[var] = summarize_data(smoothed_hourly)
+            data_summary.to_csv(
+                dirpath + '/timeseries_data_summary_' + dset + '_' + var
+                + '.csv')
+
+            # Plot the data
+            ResearchModules.plotData(smoothed_hourly, 'index', 'ydata',
+                                     'Date', dset_groups[dset]['ytitle'], var,
+                                     ax=ax, plotsize=plotsize_default,
+                                     smooth=True, xtype='datetime',
+                                     datefmt=files[file]['datefmt'])
+            
+            # Add to legend
+            legend.append(var)
+            
+        # Add the legend
+        if len(legend)>1:
+            ax.legend(legend)
+        
+        # Show and save the figure
+        fig.show()
+        fig.savefig(dirpath + '/' + dset + '.png')
+        fig.savefig(dirpath + '/' + dset + '.svg')
+
+
+
 def summarize_data(data, dt_range='all', time_col='index', ycol='ydata'):
     '''
     Summarizes timeseries data, determining:
@@ -240,76 +326,10 @@ def summarize_data(data, dt_range='all', time_col='index', ycol='ydata'):
 # MAIN FUNCTION
 ####################
 if __name__ == '__main__':
-    # Load in files
-    dirpath = os.getcwd()
-    for file in files:
-        # Load in the file
-        filename, dirpath, data = ResearchModules.fileGet(
-            'Select file with data for ' + files[file]['title'], directory=dirpath)
-        files[file]['raw_data'] = data
-        
-    # Set up the summary
-    data_summary = pd.DataFrame(
-        columns=['Dataset','min_val','min_date','max_val','max_date','median',
-                 'avg','stdev'])
-    data_summary.set_index('Dataset',inplace=True)
+   
+    # Load files
+    dirpath = loadFiles()
+    buildSummaries(dirpath)
     
-    # Go through data groups and plot figures, generate summaries
-    for dset in dset_groups:
-        print('Building ' + dset + ' figure...')
-        
-        # Create a new figure
-        fig, ax = plt.subplots(figsize=plotsize_default)
-        legend=[]
-        
-        # Plot each line
-        for var in dset_groups[dset]['datasets']:
-            print ('   Processing ' + var + '...')
-            # Get the data
-            file = dset_groups[dset]['datasets'][var]['file']
-            xcol = files[file]['xcol']
-            ycol = dset_groups[dset]['datasets'][var]['ycol']
-            data = files[file]['raw_data'][[xcol,ycol]].copy()
-            convert = dset_groups[dset]['datasets'][var]['conv']
-            
-            # Format the data
-            data.columns = ['Timestamp','ydata']
-            print('      Converting timestamps for ' + var + '...')
-            data['Timestamp'] = pd.to_datetime(data['Timestamp'])
-            data['ydata'] = pd.to_numeric(data['ydata'], errors='coerce')
-            data.set_index('Timestamp', inplace=True)
-            
-            # Resample the data to hourly values
-            smoothed_hourly = data.resample('1H').mean()
-            
-            # Convert units if needed
-            if convert:
-                fctn = getattr(ResearchModules, convert)
-                smoothed_hourly['ydata'] = [fctn(x)
-                                            for x in smoothed_hourly['ydata']]
-            
-            # Summarize data
-            smoothed_hourly.to_csv(dirpath + var + '_smoothed-hourly.csv')
-            data_summary.loc[var] = summarize_data(smoothed_hourly)
 
-            # Plot the data
-            ResearchModules.plotData(smoothed_hourly, 'index', 'ydata',
-                                     'Date', dset_groups[dset]['ytitle'], var,
-                                     ax=ax, plotsize=plotsize_default,
-                                     smooth=True, xtype='datetime',
-                                     datefmt=files[file]['datefmt'])
-            
-            # Add to legend
-            legend.append(var)
-            
-        # Add the legend
-        if len(legend)>1:
-            ax.legend(legend)
-        
-        # Show and save the figure
-        fig.show()
-        fig.savefig(dirpath + '/' + dset + '.png')
-        fig.savefig(dirpath + '/' + dset + '.svg')
-        
-    # Save the data summary
-    data_summary.to_csv(dirpath + '/' + 'timeseries_data_summary.csv')
+    

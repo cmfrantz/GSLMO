@@ -56,7 +56,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>
 ####################
 # TO DO! BEFORE SYNCING
 ####################
-# Delete temp variables with filepaths
+# Delete temporary variables with filepaths
 # Comment out code to find files from filepaths
 
 

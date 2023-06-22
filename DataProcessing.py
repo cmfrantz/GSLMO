@@ -507,9 +507,10 @@ def get_files_from_server():
     for file in filelist_remote:
         print('Downloading ' + file + ' data from remote server...')
         file_info = filelist_remote[file]
-        GSLMO_data[file] = pd.read_csv(GSLMO_data_URL + file_info['filename'],
-                                       header = file_info['header'],
-                                       error_bad_lines=False)
+        GSLMO_data[file] = pd.read_csv(
+            GSLMO_data_URL + file_info['filename'],
+            header = file_info['header'],
+            error_bad_lines=False)
         GSLMO_data[file].index = pd.to_datetime(
             GSLMO_data[file][file_info['timecol']])
     return GSLMO_data
