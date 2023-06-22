@@ -60,7 +60,7 @@ def getFiles(title, directory = os.getcwd(), file_type = [('CSV', '*.csv')]):
 
 
 def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
-            file_type = 'csv', header_row = 0, index_col = 0):
+            file_type = 'csv', header_row = 0, index_col = 0, sheet_name = []):
     '''This script imports data from a file chosen with a user input GUI.
     
     Parameters
@@ -77,10 +77,13 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
         The type of file. Options are currently only:
             'csv' (default)     comma-seperated file
             'tsv'               tab-seperated file
+            'excel'             Excel worksheet
     header_row : int, optional
         The row of the file to capture for the data header. The default is 0.
     index_col : int, optional
         The column of the file to capture for the data index. The default is 0.
+    sheet_name: str, optional
+        
 
     Returns
     -------
@@ -112,9 +115,11 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
     if file_type == 'csv':
         ftype = [('CSV', '*.csv')]
         sep = ','
-    elif file_type == 'tsv':
+    if file_type == 'tsv':
         ftype = [('TSV', '*.tsv, *.txt')]
         sep = '\t'
+    if file_type == 'excel':
+        ftype = [('Excel', '*.xls, *.xlsx')]
     
     # Open user input file dialog to pick file
     root=Tk()
@@ -125,8 +130,17 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
     
     # Read file
     print('Loading ' + filename + '...')
-    data = pd.read_csv(filename, sep = sep,
-                       header = header_row, index_col = index_col)
+    if file_type == 'excel':
+        if sheet_name:
+            data = pd.read_excel(
+                filename, sheet_name, header = header_row,
+                index_col = index_col)
+        else:
+            data = pd.read_excel(
+                filename, header = header_row, index_col = index_col)
+    else:
+        data = pd.read_csv(filename, sep = sep,
+                           header = header_row, index_col = index_col)
     
     return filename, dirPath, data
 
