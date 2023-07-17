@@ -41,7 +41,7 @@ USGS_sites = {
     'Saltair'   : {
         'station_id'    : 10010000,
         'date_start'    : '2022-12-15',
-        'row_head'      : 28
+        'row_head'      : 29
         },
     'Causeway'  : {
         'station_id'    : 10010024,
@@ -213,7 +213,7 @@ HTML_head = (HTML_head + HTML_newmin_head + str(elev_min) + HTML_newmin_mid
 
 # Build the bokeh figure
 print('\nBuilding the figure...')
-fig = figure(plot_height = plt_ht*100, plot_width = plt_w*100,
+fig = figure(height = plt_ht*100, width = plt_w*100,
              tools = toolset,
              x_axis_type = 'datetime',
              active_drag = active_drag, active_scroll=active_scroll,
