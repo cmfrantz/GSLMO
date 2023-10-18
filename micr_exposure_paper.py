@@ -306,7 +306,36 @@ def logisticCurveFit(elev, ydata, elev_corr_factor):
     p_error = np.sqrt(np.diag(p_covar))
     
     return p_opt, p_error
+     
+
+def modelLogistic(elev, micr_expos):
+    '''Run logistic model and return stats'''
+    # Model data with sigmoid function
+    # y = L / (1 + np.exp(-k * (x-x0))) + b
+    elev_corr_factor = max(elev)
+    p_opt, p_error = logisticCurveFit(elev, micr_expos, elev_corr_factor)
+    # Calculate bestfit line
+    y_bestfit = logistic(
+        elev_corr_factor-elev,
+        p_opt[0], p_opt[1], p_opt[2], p_opt[3])
+    # Calculate r2
+    r2 = calc_r2(micr_expos, y_bestfit)
+    # Calculate error ranges
+    y_max = logistic(
+        elev_corr_factor-elev,
+        p_opt[0] + p_error[0],
+        p_opt[1] + p_error[1],
+        p_opt[2] + p_error[2],
+        p_opt[3] + p_error[3])
+    y_min = logistic(
+        elev_corr_factor-elev,
+        p_opt[0] - p_error[0],
+        p_opt[1] - p_error[1],
+        p_opt[2] - p_error[2],
+        p_opt[3] - p_error[3])
     
+    return p_opt, p_error, y_bestfit, r2, y_max, y_min
+
 
 def calc_r2(y_meas, y_model):
     '''Calculate r2'''
@@ -346,18 +375,26 @@ def findElevationBands(micr_expos_data, arm, conf_level):
 def GSL_elevation_plot(ax, lake_elev, color='k'):
     ax.plot(lake_elev.index,lake_elev,color=color)
     ax.set_xlabel('Year')
-    ax.set_ylabel('Lake elevation (ft asl)')
+    ax.set_ylabel('Lake elevation (ft-asl)')
     
     return ax
 
 
 def ft2m(ft):
+    '''Convert ft to m'''
     return 0.3048*ft
 
 def m2ft(m):
+    '''Convert m to ft'''
     return 3.28084*m
 
+def kmsq2misq(km2):
+    '''Convert km2 to mi2'''
+    return 0.3861*km2
 
+def misq2kmsq(mi2):
+    '''Convert mi2 to km2'''
+    return 2.59*mi2
         
 
 # FIGURE 1B LAKE ELEVATION
@@ -385,7 +422,7 @@ def Figure1B(dirpath, lake_elev, micr_expos_data, conf_level,
            facecolor=shade_color, alpha=1-expos_interp.iloc[i]['%exp'])
     axs[0].set_ylim(ylim)
     ax2 = axs[0].secondary_yaxis('right', functions=(ft2m,m2ft))
-    ax2.set_ylabel('Lake elevation (m asl)')
+    ax2.set_ylabel('Lake elevation (masl)')
       
     #Figure 1B: microbialites by elevation band
     # Plot GSL elevation
@@ -400,6 +437,8 @@ def Figure1B(dirpath, lake_elev, micr_expos_data, conf_level,
                 micr_expos_data.iloc[i]['%in_band_' + conf_level] *
                 alpha_factor))
     axs[1].set_ylim(ylim)
+    ax2 = axs[1].secondary_yaxis('right', functions=(ft2m, m2ft))
+    ax2.set_ylabel('Lake elevation (masl)')
     
     # Save figure
     fig.savefig(dirpath+'/Fig1B.png', transparent=True)
@@ -443,8 +482,10 @@ def Figure4B(dirpath, micr_expos_data, color_map, figsize=figsize):
 def Figure10(dirpath, micr_expos_data, figsize=[figw,figh*3]):
     fig, axs = plt.subplots(3,1,figsize=figsize)
     arms = ['NA','SA']
-    ylabel = 'Mapped microbialite extent (km2)'
-    xlabel = 'Elevation band (ft-asl)'
+    y1label = 'Mapped microbialite extent (km2)'
+    y2label = 'Mapped microbialite extent (mi2)'
+    x1label = 'Elevation band (ft-asl)'
+    x2label = 'Elevation band (masl)'
     legloc = 'upper right'
     
     # Build confidence level plots
@@ -475,8 +516,13 @@ def Figure10(dirpath, micr_expos_data, figsize=[figw,figh*3]):
                 label = arm + sfx + ' confidence')
             bottom = bottom + micr_expos_data[arm + sfx].values
         axs[i].set_title(arm)
-        axs[i].set_xlabel(xlabel)
-        axs[i].set_ylabel(ylabel)
+        axs[i].set_xlabel(x1label)
+        axs[i].set_ylabel(y1label)
+        axx2 = axs[i].secondary_xaxis('top', functions=(ft2m, m2ft))
+        axx2.set_xlabel(x2label)
+        axy2 = axs[i].secondary_yaxis(
+            'right', functions=(kmsq2misq, misq2kmsq))
+        axy2.set_ylabel(y2label)
         handles, labels = axs[i].get_legend_handles_labels()
         axs[i].legend(handles[::-1], labels[::-1], loc=legloc, frameon=False)
     
@@ -492,11 +538,17 @@ def Figure10(dirpath, micr_expos_data, figsize=[figw,figh*3]):
                 label = arm + sfx + ' confidence')
             bottom = bottom + micr_expos_data[arm + sfx].values
         axs[2].set_title('Whole lake')
-        axs[2].set_xlabel(xlabel)
-        axs[2].set_ylabel(ylabel)
+        axs[2].set_xlabel(x1label)
+        axs[2].set_ylabel(y1label)
+        axx2 = axs[2].secondary_xaxis('top', functions=(ft2m, m2ft))
+        axx2.set_xlabel(x2label)
+        axy2 = axs[2].secondary_yaxis(
+            'right', functions=(kmsq2misq, misq2kmsq))
+        axy2.set_ylabel(y2label)
         axs[2].legend(loc=legloc, frameon=False)
         
     # Save figure
+    fig.tight_layout(pad=2.0)
     fig.savefig(dirpath+'/Fig10.png',transparent=True)
     fig.savefig(dirpath+'/Fig10.pdf', transparent=True)
             
@@ -507,9 +559,13 @@ def Figure10(dirpath, micr_expos_data, figsize=[figw,figh*3]):
 
 # FIGURE 12 ELEV/EXPOSURE
 def Figure12(dirpath, micr_expos_data, figsize=[figw,figh*3], polydeg=6):
-    logistic_factors = pd.DataFrame(columns=['r2',
-        'L','k','x0','b',
-        'L_sterr','k_sterr','x0_sterr','b_sterr'])
+    # Set up data table
+    logistic_vals = ['r2','L','k','x0','b','L_sterr','k_sterr','x0_sterr',
+                     'b_sterr']
+    header = []
+    for unit in ['imperial', 'metric']:
+        header=header+[(unit, val) for val in logistic_vals]
+    logistic_factors = pd.DataFrame(columns=header)
     fig, axs = plt.subplots(3,1,figsize=figsize)
     elev = micr_expos_data.index
     for i, arm in enumerate(['NA','SA','both']):
@@ -517,69 +573,54 @@ def Figure12(dirpath, micr_expos_data, figsize=[figw,figh*3], polydeg=6):
         else: pfx = arm + ' '
         for conf in ['high','all']:
                  
-            # Model data with polynomial best fit line
-            # fitvals, fitmodel, r2 = polyBestFit(
-            #     micr_expos_data.index,
-            #     micr_expos_data['tot_expos_' + pfx + conf],
-            #     degree = polydeg)
-            
-            # Model data with sigmoid function
-            # y = L / (1 + np.exp(-k * (x-x0))) + b
-            elev_corr_factor = max(elev)
-            p_opt, p_error = logisticCurveFit(
-                elev, micr_expos_data['tot_expos_' + pfx + conf],
-                elev_corr_factor)
-            # Calculate bestfit line
-            y_bestfit = logistic(
-                elev_corr_factor-elev,
-                p_opt[0], p_opt[1], p_opt[2], p_opt[3])
-            # Calculate r2
-            r2 = calc_r2(micr_expos_data['tot_expos_' + pfx + conf], y_bestfit)
-            # Save bestfit factors
+            # Model data with logistic curve - Imperial units
+            micr_expos = micr_expos_data['tot_expos_' + pfx + conf].apply(
+                kmsq2misq)
+            i_p_opt, i_p_error, i_y_bestfit, i_r2, i_y_max, i_y_min = modelLogistic(
+                elev, micr_expos)
+            # Model data with logistic curve - Metric units
+            elev_m = ft2m(elev)
+            m_p_opt, m_p_error, m_y_bestfit, m_r2, m_y_max, m_y_min = modelLogistic(
+                elev_m, micr_expos_data['tot_expos_' + pfx + conf])
             logistic_factors.loc[pfx + conf] = (
-                [r2] + list(p_opt) + list(p_error))
-            # Calculate error ranges
-            y_max = logistic(
-                elev_corr_factor-elev,
-                p_opt[0] + p_error[0],
-                p_opt[1] + p_error[1],
-                p_opt[2] + p_error[2],
-                p_opt[3] + p_error[3])
-            y_min = logistic(
-                elev_corr_factor-elev,
-                p_opt[0] - p_error[0],
-                p_opt[1] - p_error[1],
-                p_opt[2] - p_error[2],
-                p_opt[3] - p_error[3])
+                [i_r2] + list(i_p_opt) + list(i_p_error) + [m_r2] +
+                list(m_p_opt) + list(m_p_error))
             
             # Build plots
             # Plot error ranges
             axs[i].fill_between(
-                elev, y_max, y_min, color=colors[pfx+conf], alpha = 0.3)
+                elev, i_y_max, i_y_min, color=colors[pfx+conf], alpha = 0.3)
             # Plot logistic curve bestfit
-            axs[i].plot(elev, y_bestfit.values, color=colors[pfx + conf],
-                        label = conf + ' logistic, r2 = ' + str(r2.round(3)))
+            axs[i].plot(elev, i_y_bestfit.values, color=colors[pfx + conf],
+                        label = conf + ' logistic, r2 = ' + str(i_r2.round(3)))
             # Plot points
             axs[i].scatter(
                 elev,
-                micr_expos_data['tot_expos_' + pfx + conf],
+                kmsq2misq(micr_expos_data['tot_expos_' + pfx + conf]),
                 color=colors[pfx + conf],
                 label=conf + ' confidence')
             
             # Plot 2022 low
             axs[i].axvline(x=4188.5, color='k', linestyle='--')
-            axs[i].set_xlabel('Lake elevation (ft asl)')
-            axs[i].set_ylabel('Area of exposed microbialites (km2)')
+            
+            # Set plot labels
+            axs[i].set_xlabel('Lake elevation (ft-asl)')
+            axs[i].set_ylabel('Area of exposed microbialites (mi2)')
+            x2 = axs[i].secondary_xaxis('top', functions=(ft2m, m2ft))
+            x2.set_xlabel('Lake elevation (masl)')
+            y2 = axs[i].secondary_yaxis(
+                'right', functions=(misq2kmsq, kmsq2misq))
+            y2.set_ylabel('Area of exposed microbialites (km2)')            
             axs[i].set_title(pfx + conf)
             #axs[i].set_ylim([0,math.ceil(max(y_max)/50)*50])
             axs[i].legend(loc='upper right', frameon=False)
             
-    # Save plot
+    # Save plot    
+    fig.tight_layout(pad=2.0)
     plt.savefig(dirpath+'/Fig12.png',transparent=True)
     plt.savefig(dirpath+'/Fig12.pdf',transparent=True)
     # Save parameters
     logistic_factors.to_csv(dirpath+'/logistic_factors.csv')
-            
 
 
 # FIGURE A1 DISTRIBUTION STATISTICS

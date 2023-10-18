@@ -285,11 +285,11 @@ save(column([Div(text = GSL_elev_head),fig]))
 # Plot parameters
 convert_to_m = False
 figsize = [8,4]
-date_start = date(2005,1,1)
-date_end = date(2015,1,1)
+date_start = date(2018,1,1)
+date_end = date(2023,8,30)
 plot_points = False
 svd = col_elev
-ylim = [4193,4200]
+ylim = [4188,4196]
 
 if convert_to_m:
     # Convert ft to m
@@ -331,4 +331,5 @@ else:
     plt.ylabel('Elevation (ft)')
 plt.rcParams['svg.fonttype'] = 'none'
 fig.savefig('GSL_Elevation.svg', format='svg')
+fig.savefig('GSL_Elevation.png', format='png')
 
