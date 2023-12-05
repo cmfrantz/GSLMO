@@ -275,7 +275,7 @@ def PoissonFit(elev, ydata):
     return prmodel, score, coeffs
 
 
-def logistic(x, L, x0, k, b):
+def logistic(x, L, k, x0, b):
     '''logistic function definition'''
     y = L / (1 + np.exp(-k * (x-x0))) + b
     return (y)
@@ -297,10 +297,10 @@ def logisticCurveFit(elev, ydata, elev_corr_factor):
     #       this factor moves the x-axis to start at 0
     k = 1                           # curve steepness
     x0 = np.median(ydata)           # sigmoid center
-    p0 = [L, b, k, x0]              # initial (guess) parameters
+    p_i = [L, k, x0, b]             # initial (guess) parameters
     
     # Find the optimized parameters (p_opt) for the best fit
-    p_opt, p_covar = curve_fit(logistic, elev_c, ydata, p0, method='dogbox')
+    p_opt, p_covar = curve_fit(logistic, elev_c, ydata, p_i, method='dogbox')
     
     # Calculate parameter errors
     p_error = np.sqrt(np.diag(p_covar))
@@ -582,6 +582,7 @@ def Figure12(dirpath, micr_expos_data, figsize=[figw,figh*3], polydeg=6):
             elev_m = ft2m(elev)
             m_p_opt, m_p_error, m_y_bestfit, m_r2, m_y_max, m_y_min = modelLogistic(
                 elev_m, micr_expos_data['tot_expos_' + pfx + conf])
+            # Save logistic factors
             logistic_factors.loc[pfx + conf] = (
                 [i_r2] + list(i_p_opt) + list(i_p_error) + [m_r2] +
                 list(m_p_opt) + list(m_p_error))

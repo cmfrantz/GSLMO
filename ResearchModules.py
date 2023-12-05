@@ -116,10 +116,10 @@ def fileGet(title, tabletype = 'Generic', directory = os.getcwd(),
         ftype = [('CSV', '*.csv')]
         sep = ','
     if file_type == 'tsv':
-        ftype = [('TSV', '*.tsv, *.txt')]
+        ftype = [('TSV', '*.tsv *.txt')]
         sep = '\t'
     if file_type == 'excel':
-        ftype = [('Excel', '*.xls, *.xlsx')]
+        ftype = [('Excel', '*.xls *.xlsx')]
     
     # Open user input file dialog to pick file
     root=Tk()
