@@ -27,7 +27,7 @@ from datetime import date
 # --- Data Sources ---
 # Local file containing the manually-downloaded USGS data.
 # This should be a tab-separated file.
-LOCAL_DATA_FILE = 'C://Users//cariefrantz//Downloads//dv.txt'
+LOCAL_DATA_FILE = "dv.txt"
 
 # --- Data Column Names ---
 # This column name is used for the data after being processed from the USGS.
@@ -47,6 +47,28 @@ ALPHA = 0.6
 FONT_SIZE = 12
 plt.rcParams.update({'font.size': FONT_SIZE})
 
+# --- Plot Date Range ---
+# Set to None to plot the full date range available in the data.
+# Or, set specific start and end dates as strings, e.g., '2000-01-01'.
+today = date.today()
+today_str = today.strftime("%Y-%m-%d")
+PLOT_START_DATE = '2015-01-01'
+PLOT_END_DATE = today_str
+
+# --- Plot Y-Axis Scaling ---
+# Controls the Y-axis limits.
+# - 'auto': Automatically scales to the data within the specified plot date range.
+# - [min, max]: A list specifying the exact min and max for the Y-axis (e.g., [4189, 4200]).
+# - None: Scales to the full range of the entire dataset.
+Y_AXIS_SETTING = [4188,4200]
+
+# --- Context Markers ---
+# Set to True to add lines showing historical ranges
+HIST_MIN = False
+HIST_MAX = False
+HIST_MEAN = False
+PI_MEAN = False
+MGMT_RANGE = True
 
 ####################
 # CODE
@@ -137,22 +159,54 @@ if not combined_elev.empty:
     #           color='lightblue', s=MARKER_SIZE,
     #           label='Daily Mean Elevation')
 
-    # Add horizontal lines for historical context
-    ax.axhline(pi_mean, color='gray', linestyle='--', linewidth=LINE_WIDTH, alpha=ALPHA,
-               label=f'Pre-industrial Mean ({pi_mean:.1f} ft)')
-    ax.axhline(hist_mean, color='darkgrey', linestyle='--', linewidth=LINE_WIDTH, alpha=ALPHA,
-               label=f'Historical Mean ({hist_mean:.1f} ft)')
-    ax.axhline(hist_max, color='steelblue', linestyle=':', linewidth=LINE_WIDTH, alpha=ALPHA,
-               label=f'Historical Max ({hist_max:.1f} ft)')
-    ax.axhline(hist_min, color='crimson', linestyle=':', linewidth=LINE_WIDTH, alpha=ALPHA,
-               label=f'Historical Min ({hist_min:.1f} ft)')
+    # Add context markers
+    if PI_MEAN:
+        ax.axhline(pi_mean, color='gray', linestyle='--', linewidth=LINE_WIDTH, alpha=ALPHA,
+                   label=f'Pre-industrial Mean ({pi_mean:.1f} ft)')
+    if HIST_MEAN:
+        ax.axhline(hist_mean, color='darkgrey', linestyle='--', linewidth=LINE_WIDTH, alpha=ALPHA,
+                   label=f'Historical Mean ({hist_mean:.1f} ft)')
+    if HIST_MAX:
+        ax.axhline(hist_max, color='steelblue', linestyle=':', linewidth=LINE_WIDTH, alpha=ALPHA,
+                   label=f'Historical Max ({hist_max:.1f} ft)')
+    if HIST_MIN:
+        ax.axhline(hist_min, color='crimson', linestyle=':', linewidth=LINE_WIDTH, alpha=ALPHA,
+                   label=f'Historical Min ({hist_min:.1f} ft)')
+    if MGMT_RANGE:
+        ax.axhspan(4198, 4205, color = 'green', alpha=0.2, label = 'Healthy Lake Management Range (4198-4205 ft)')
 
     # Formatting the plot
     ax.set_title('Great Salt Lake Elevation (South Arm - Saltair Station 10010000)')
     ax.set_xlabel('Year')
     ax.set_ylabel('Lake Elevation (ft above NGVD 1929)')
     ax.grid(True, which='both', linestyle='--', linewidth=0.5)
-    ax.legend(loc='best')
+
+    # Set the x-axis limits if a custom date range is provided
+    if PLOT_START_DATE and PLOT_END_DATE:
+        start_date = pd.to_datetime(PLOT_START_DATE)
+        end_date = pd.to_datetime(PLOT_END_DATE)
+        ax.set_xlim(start_date, end_date)
+
+    # Set y-axis limits based on the Y_AXIS_SETTING variable
+        if isinstance(Y_AXIS_SETTING, list) and len(Y_AXIS_SETTING) == 2:
+            # Option 1: A manual range is specified, e.g., [4189, 4200]
+            ax.set_ylim(Y_AXIS_SETTING[0], Y_AXIS_SETTING[1])
+        elif Y_AXIS_SETTING == 'auto' and PLOT_START_DATE and PLOT_END_DATE:
+            # Option 2: Autoscale to the data within the specified date range
+            start_date = pd.to_datetime(PLOT_START_DATE)
+            end_date = pd.to_datetime(PLOT_END_DATE)
+            mask = (combined_elev.index >= start_date) & (combined_elev.index <= end_date)
+            ranged_data = combined_elev.loc[mask]
+    
+            if not ranged_data.empty:
+                min_elev = ranged_data[COL_ELEV_FT].min()
+                max_elev = ranged_data[COL_ELEV_FT].max()
+                # Add 5% padding for better visibility
+                padding = (max_elev - min_elev) * 0.05
+                ax.set_ylim(min_elev - padding, max_elev + padding)
+        # Option 3: Y_AXIS_SETTING is None or invalid, so matplotlib's default full-scale is used.
+
+    ax.legend(loc='lower left')
     fig.tight_layout()
 
     # --- 4. SAVING THE PLOT ---
