@@ -27,6 +27,9 @@ from datetime import date
 # --- Data Sources ---
 # Local file containing the manually-downloaded USGS data.
 # This should be a tab-separated file.
+# To download it, visit
+# https://waterdata.usgs.gov/nwis/dv/?site_no=10010000&agency_cd=USGS
+#Select Time-series: Daily data, Tab-separated, Begin date 1847-10-18
 LOCAL_DATA_FILE = "dv.txt"
 
 # --- Data Column Names ---
@@ -38,6 +41,10 @@ PI_START = '1850'  # Start of 'pre-industrial' period
 PI_END = '1900'    # End of 'pre-industrial' period
 HIST_START = '1900' # Start of 'historical' period
 HIST_END = '2000'   # End of 'historical' period
+
+# --- Important Elevation Ranges ---
+GSL_MGMT_ELEV = [4198,4205]
+MICROBIALITE_ELEV = [4180,4195]
 
 # --- Plot Formatting ---
 FIG_SIZE = (12, 6)
@@ -60,7 +67,7 @@ PLOT_END_DATE = today_str
 # - 'auto': Automatically scales to the data within the specified plot date range.
 # - [min, max]: A list specifying the exact min and max for the Y-axis (e.g., [4189, 4200]).
 # - None: Scales to the full range of the entire dataset.
-Y_AXIS_SETTING = [4188,4200]
+Y_AXIS_SETTING = [4188, 4196]
 
 # --- Context Markers ---
 # Set to True to add lines showing historical ranges
@@ -68,7 +75,8 @@ HIST_MIN = False
 HIST_MAX = False
 HIST_MEAN = False
 PI_MEAN = False
-MGMT_RANGE = True
+MGMT_RANGE = False
+KEY_VIS = False
 
 ####################
 # CODE
@@ -188,25 +196,28 @@ if not combined_elev.empty:
         ax.set_xlim(start_date, end_date)
 
     # Set y-axis limits based on the Y_AXIS_SETTING variable
-        if isinstance(Y_AXIS_SETTING, list) and len(Y_AXIS_SETTING) == 2:
-            # Option 1: A manual range is specified, e.g., [4189, 4200]
-            ax.set_ylim(Y_AXIS_SETTING[0], Y_AXIS_SETTING[1])
-        elif Y_AXIS_SETTING == 'auto' and PLOT_START_DATE and PLOT_END_DATE:
-            # Option 2: Autoscale to the data within the specified date range
-            start_date = pd.to_datetime(PLOT_START_DATE)
-            end_date = pd.to_datetime(PLOT_END_DATE)
-            mask = (combined_elev.index >= start_date) & (combined_elev.index <= end_date)
-            ranged_data = combined_elev.loc[mask]
-    
-            if not ranged_data.empty:
-                min_elev = ranged_data[COL_ELEV_FT].min()
-                max_elev = ranged_data[COL_ELEV_FT].max()
-                # Add 5% padding for better visibility
-                padding = (max_elev - min_elev) * 0.05
-                ax.set_ylim(min_elev - padding, max_elev + padding)
-        # Option 3: Y_AXIS_SETTING is None or invalid, so matplotlib's default full-scale is used.
+    if isinstance(Y_AXIS_SETTING, list) and len(Y_AXIS_SETTING) == 2:
+        # Option 1: A manual range is specified, e.g., [4189, 4200]
+        ax.set_ylim(Y_AXIS_SETTING[0], Y_AXIS_SETTING[1])
+    elif Y_AXIS_SETTING == 'auto' and PLOT_START_DATE and PLOT_END_DATE:
+        # Option 2: Autoscale to the data within the specified date range
+        start_date = pd.to_datetime(PLOT_START_DATE)
+        end_date = pd.to_datetime(PLOT_END_DATE)
+        mask = (combined_elev.index >= start_date) & (combined_elev.index <= end_date)
+        ranged_data = combined_elev.loc[mask]
 
-    ax.legend(loc='lower left')
+        if not ranged_data.empty:
+            min_elev = ranged_data[COL_ELEV_FT].min()
+            max_elev = ranged_data[COL_ELEV_FT].max()
+            # Add 5% padding for better visibility
+            padding = (max_elev - min_elev) * 0.05
+            ax.set_ylim(min_elev - padding, max_elev + padding)
+    # Option 3: Y_AXIS_SETTING is None or invalid, so matplotlib's default full-scale is used.
+
+    # Show / hide legend
+    if KEY_VIS != False:
+        ax.legend(loc='lower left')
+        
     fig.tight_layout()
 
     # --- 4. SAVING THE PLOT ---
