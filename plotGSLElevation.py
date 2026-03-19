@@ -7,7 +7,7 @@ Created on Sat Jul 24 10:21:06 2021
 Updates the HTML page of historical lake elevation at from USGS data.
 Data from 1847-2022 is from Saltair site 10010000, which went dry in 09-2022,
     then re-submerged in 12-2022
-Data from 2019-     is from Lakeside causeway site 10010024
+Alternate data for 2022 can come from Lakeside causeway site 10010024
 
 """
 

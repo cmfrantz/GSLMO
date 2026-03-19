@@ -9,7 +9,7 @@ Converts salinity to density of Great Salt Lake water at different temperatures
 using the equation of state developed by Naftz et al (2011).
 
 The equation of state is officially valid from 0-180 g/L salinity.
-However, recent work by A. Rupke et al. at the Utah Geological Survey announced
+However, recent work by A. Rupke et al. (Utah Geological Survey) announced
 at the 2022 Great Salt Lake Issues Forum was reported that extends the validity
 of the equation of state to higher salinity values.
 
@@ -123,7 +123,7 @@ def salinity_to_density(salinity, temp_C):
 
 def density_to_salinity(density, temp_C):
     '''
-    Determine salinitys from measured water density
+    Determine salinity from measured water density
 
     Parameters
     ----------
@@ -157,4 +157,31 @@ def density_to_salinity(density, temp_C):
     
     return salinity
 
+
+def salinity_to_salinityWtPct(salinity, temp_C):
+    '''
+    Convert salinity in g/L to wt % salinity
+    
+    Parameters
+    ----------
+    salinity : float
+        Salinity measured in g/L
+    tem_C : float
+        Temperature at which salinity was measured in degrees C.
+        
+    Returns
+    -------
+    salinity_pct : float
+        Calculated salinity in weight %
+        
+    '''
+    
+    # Calculate density of GSL water
+    density_GSL = salinity_to_density(salinity, temp_C)
+    
+    # Determine weight percent
+    # = salinity in g/L divided by density in g/cm3 * 100/1000
+    salinity_pct = round(salinity/(density_GSL * 10),2)
+    
+    return salinity_pct
     
