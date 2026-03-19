@@ -8,20 +8,21 @@ Created on Wed Sep 28 19:57:33 2022
 Converts salinity to density of Great Salt Lake water at different temperatures
 using the equation of state developed by Naftz et al (2011).
 
-The equation of state is officially valid from 0-180 g/L salinity.
-However, recent work by A. Rupke et al. (Utah Geological Survey) announced
-at the 2022 Great Salt Lake Issues Forum was reported that extends the validity
-of the equation of state to higher salinity values.
+The equation of state is valid from 0-270 g/L salinity.
 
-Reference:
+References:
     
     Naftz, D. L., Millero, F. J., Jones, B. F., & Green, W. R. (2011). An
     Equation of State for Hypersaline Water in Great Salt Lake, Utah, USA.
     Aquatic Geochemistry, 17(6), 809–820.
     https://doi.org/10.1007/s10498-011-9138-z
+    
+    Mcilwain, H.E. (2023). Density and salinity data to validate an equation
+    of state for hypersaline water in Great Salt Lake, Utah, 2021–2022:
+    U.S. Geological Survey data release, https://doi.org/10.5066/P96MNH8J
 
 
-Copyright (C) 2022  Carie M. Frantz
+Copyright (C) 2026  Carie M. Frantz
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -57,8 +58,9 @@ E = 0.00199
 F = -0.00112
 
 # Warning text for values outside the valid range
+lim_max = 270   # Upper validity limit in g/L
 warn_start = 'Warning: The '
-warn_mid = ' is outside the range of 0–180 g/L used to develop the GSL equation of state in Naftz (2011). Take this calculated '
+warn_mid = ' is outside the range of 0–270 g/L used to develop the GSL equation of state in Naftz (2011). Take this calculated '
 warn_end = ' value with a grain of salt. Pun fully intended.'
 
 
@@ -116,7 +118,7 @@ def salinity_to_density(salinity, temp_C):
     p0 = water_density(temp_C)
     density_kgm3 = p0*1000 + A + B*salinity + C*T_K + D*salinity**2 + E*T_K**2 + F*salinity*T_K
     density_gcm3 = density_kgm3/1000
-    if salinity < 0 or salinity > 180:
+    if salinity < 0 or salinity > lim_max:
         print(warn_start + 'salinity input' + warn_mid + 'density' + warn_end)
     return density_gcm3
 
@@ -151,7 +153,7 @@ def density_to_salinity(density, temp_C):
     
     salinity = (-G + math.sqrt(G**2 - 4*D*H)) /(2*D)
     
-    if salinity < 0 or salinity > 180:
+    if salinity < 0 or salinity > lim_max:
         print(warn_start + 'calculated salinity value' + warn_mid + 'salinity'
               + warn_end)
     
@@ -181,7 +183,7 @@ def salinity_to_salinityWtPct(salinity, temp_C):
     
     # Determine weight percent
     # = salinity in g/L divided by density in g/cm3 * 100/1000
-    salinity_pct = round(salinity/(density_GSL * 10),2)
+    salinity_pct = round(salinity/(density_GSL * 10),1)
     
     return salinity_pct
     
