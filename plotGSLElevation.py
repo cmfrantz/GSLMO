@@ -6,7 +6,7 @@ Created on Tue Jun  2 15:59:22 2026
 
 Builds plots of Great Salt Lake elevation in the context of historical trends.
 - Downloads data from USGS.
-- Calculates mean/min/max & 95th % ranges for selected timeperiods.
+- Calculates min/max and time-weighted mean & 95th % ranges for selected timeperiods.
 - Builds and saves a static plot with selected historical references.
 - Builds and saves an interactive (Bokeh) plot in web (HTML) format with
     selected historical references.
@@ -255,15 +255,58 @@ def fetchData(station_id = station_id, parameter_code = parameter_code,
     return df
 
 
-def calcStats(data, date_start, date_end):
+
+def interpolateElev(elev_data):
+    '''
+    Resamples elevation data to return resampled daily data and interpolated
+    weekly elevation data.
+
+    Parameters
+    ----------
+    elev_data : pandas.DataFrame
+        Table of elevation values. Must contain the columns "Date" and "Elevation".
+
+    Returns
+    -------
+    elev_data_daily :  pandas.DataFrame
+        Table of daily elevation values for the entire date range.
+    elev_interp_weekly :  pandas.DataFrame
+        Table of interpolated weekly elevation values.
+
+    '''
+    elev_data["Elevation"] = pd.to_numeric(elev_data["Elevation"], errors="coerce")
+    data = elev_data[["Date","Elevation"]].set_index("Date")
+    
+    # Resample to daily
+    elev_data_daily = data.resample('D').mean()
+    elev_data_daily["Date"] = [str(dt)[:10] for dt in
+                               elev_data_daily.index.values]
+    
+    # Interpolate & calculate time-weighted average
+    interp_d = elev_data_daily["Elevation"].interpolate()
+    elev_interp_weekly = interp_d.resample('W').mean()
+    elev_interp_weekly.index = elev_interp_weekly.index + DateOffset(days=-3)
+    elev_interp_weekly = elev_interp_weekly.to_frame(name = "Elevation")
+    elev_interp_weekly["Date"] = [str(dt)[:10] for dt in
+                                  elev_interp_weekly.index.values]
+    
+    return elev_data_daily, elev_interp_weekly
+
+
+
+def calcStats(elev_data_daily, elev_interp_weekly, date_start, date_end):
     '''
     Calculates mean, min, max values and 95th percentile ranges
     for the specified date range.
 
     Parameters
     ----------
-    data : pandas.DataFrame
-        Table of elevation values. Must contain the columns "Date" and "Elevation".
+    elev_data_daily : pandas.DataFrame
+        Table of daily elevation values.
+        Must contain the columns "Date" and "Elevation".
+    elev_interp_weekly: pandas.DataFrame
+        Table of weekly interpolated elevation values.
+        Must contain the columns "Date" and "Elevation".
     date_start : date str
         Start date for the period (selects values >= this date).
         Can be in format "YYYY" or "YYYY-mm-dd".
@@ -285,13 +328,25 @@ def calcStats(data, date_start, date_end):
         upper bound for the 95th percentile range for the date range.
 
     '''
-    vals = data.loc[(data["Date"] >= date_start) & (data["Date"] < date_end), "Elevation"].copy()
-    elev_mean = round(vals.mean(), 1)
-    elev_min = vals.min()
-    elev_max = vals.max()
-    elev_lower95 = round(vals.quantile(0.025), 1)
-    elev_upper95 = round(vals.quantile(0.975), 1)
+    # Find max and min from daily station measurements
+    d_vals = elev_data_daily.loc[
+        (elev_data_daily["Date"] >= date_start) &
+        (elev_data_daily["Date"] < date_end), "Elevation"].copy()
+    
+    elev_min = d_vals.min()
+    elev_max = d_vals.max()
+    
+    # Calculate mean & 95th percentile ranges from weekly interpolated values
+    # for a time-weighted average
+    w_vals = elev_interp_weekly.loc[
+        (elev_interp_weekly["Date"] >= date_start) &
+        (elev_interp_weekly["Date"] < date_end), "Elevation"].copy()
+    elev_mean = round(w_vals.mean(), 1)
+    elev_lower95 = round(w_vals.quantile(0.025), 1)
+    elev_upper95 = round(w_vals.quantile(0.975), 1)
+    
     return elev_mean, elev_min, elev_max, elev_lower95, elev_upper95
+
 
 
 def buildRefPeriodDict(elev_data, plotperiods):
@@ -455,56 +510,20 @@ def appendNewminHTML(elev_data, HTML_head, HTML_newmin):
     return HTML_head
 
 
-def prepBokehData(elev_data):
-    '''
-    Prepares data for plotting in Bokeh
-
-    Parameters
-    ----------
-    elev_data : pandas.DataFrame
-        Table containing the elevation data.
-        Must include the columns "Date" and "Elevation".
-
-    Returns
-    -------
-    elev_data_daily : pandas.DataFrame
-        Elevation data resampled to daily values.
-    interp_w : pandas.DataFrame
-        Interpolated weekly elevation values.
-    source : bokeh.ColumnDataSource
-        Data packaged for plotting in Bokeh.
-
-    '''
-    elev_data["Elevation"] = pd.to_numeric(elev_data["Elevation"], errors="coerce")
-    data = elev_data[["Date","Elevation"]].set_index("Date")
     
-    # Resample to daily
-    elev_data_daily = data.resample('D').mean()
-    elev_data_daily["Date"] = [str(dt)[:10] for dt in elev_data_daily.index.values]
+def buildBokehPlot(elev_data_daily, elev_interp_weekly, HTML_head,
+                   filename, plotperiods_wStats):
+    # Find the date range
+    datemin = elev_data["Date"].min()
+    datemax = elev_data["Date"].max()
     
-    # Interpolate & calculate time-weighted average
-    interp_d = elev_data_daily["Elevation"].interpolate()
-    interp_w = interp_d.resample('W').mean()
-    interp_w.index = interp_w.index + DateOffset(days=-3)
-    
-    # Prep the data
+    # Format the data for plotting in Bokeh
     source = ColumnDataSource(data={
         'dt'      : elev_data_daily.index,
         'date'    : elev_data_daily["Date"],
         'elev'    : elev_data_daily["Elevation"],
         #'dtype'   : elev_data[col_dtype]
         })
-    
-    return elev_data_daily, interp_w, source
-    
-    
-def buildBokehPlot(elev_data, HTML_head, filename, plotperiods_wStats):
-    # Find the date range
-    datemin = elev_data["Date"].min()
-    datemax = elev_data["Date"].max()
-    
-    # Format the data for plotting in Bokeh
-    daily_elev_data, weekly_elev_interp, source_data = prepBokehData(elev_data)
 
     # Build the bokeh figure
     print('\nBuilding the Bokeh figure...')
@@ -537,15 +556,16 @@ def buildBokehPlot(elev_data, HTML_head, filename, plotperiods_wStats):
 
     # Add the station measurements
     meas = fig.circle(
-        x='dt', y='elev', source = source_data, size = mkrsize, alpha = alpha,
+        x='dt', y='elev', source = source, size = mkrsize, alpha = alpha,
         color=elev_color, legend_label = 'Station measurements'
         )
 
     
     # Add the interpolated weekly mean
     fig.line(
-        weekly_elev_interp.index, weekly_elev_interp.values, color=elev_color,
-        alpha=alpha, legend_label='Interpolated weekly mean elevation')
+        elev_interp_weekly["Date"], elev_interp_weekly["Elevation"],
+        color=elev_color, alpha=alpha,
+        legend_label='Interpolated weekly mean elevation')
 
     # Configure the toolbar
     hover = HoverTool(
@@ -577,21 +597,27 @@ if __name__ == '__main__':
     # Download the data from USGS
     elev_data = fetchData()
     
+    # Calculate daily & weekly interpolated elevations
+    elev_data_daily, elev_interp_weekly = interpolateElev(elev_data)
+    
     # Calculate timeperiod stats
     for timeperiod in plotperiods:
         # Subset the data to the specified years in the timeperiod
         years = plotperiods[timeperiod]['years']
-        plotperiods[timeperiod]['stats'] = calcStats(
-            elev_data, years[0], years[1])
+        plotperiods[timeperiod]['stats'] = calcStats(elev_data,
+            elev_interp_weekly, years[0], years[1])
+    
     
     # Build reference timeperiod stats, lines, & range boxes
+    # Run this unless manually specifying the reference lines & boxes
     [h_lines, h_boxes] = buildRefPeriodDict(elev_data, plotperiods)
                 
     # Static plot of the lake elevation and all selected lines/range boxes
-    staticPlot(elev_data, 'GSL_Elevation', h_lines = h_lines, h_boxes = h_boxes,
-               legend = True)
+    staticPlot(elev_data, 'GSL_Elevation',
+               h_lines = h_lines, h_boxes = h_boxes, legend = True)
     
     # Bokeh plot of the lake elevation
-    buildBokehPlot(elev_data, HTML_head, 'GSL_Elevation', plotperiods)
+    buildBokehPlot(elev_data_daily, elev_interp_weekly, HTML_head,
+                   'GSL_Elevation', plotperiods)
     
     
