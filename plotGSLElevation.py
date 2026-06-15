@@ -4,10 +4,12 @@ Created on Tue Jun  2 15:59:22 2026
 
 @author: cariefrantz
 
-Builds plot of Great Salt Lake elevation in the context of historical trends.
-- Downloads data from USGS
-- Calculates mean/min/max & 95th % ranges for selected timeperiods
-- Builds and saves a plot
+Builds plots of Great Salt Lake elevation in the context of historical trends.
+- Downloads data from USGS.
+- Calculates mean/min/max & 95th % ranges for selected timeperiods.
+- Builds and saves a static plot with selected historical references.
+- Builds and saves an interactive (Bokeh) plot in web (HTML) format with
+    selected historical references.
 
 """
 
