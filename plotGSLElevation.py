@@ -583,6 +583,7 @@ def buildBokehPlot(elev_data_daily, elev_interp_weekly, HTML_head,
     #show(fig)
 
     # Save HTML page
+    HTML_head = appendNewminHTML(elev_data_daily, HTML_head, HTML_newmin)
     output_file(directory + '\\' + filename + '.html')
     save(column([Div(text = HTML_head),fig]))
     
