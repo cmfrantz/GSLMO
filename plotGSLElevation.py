@@ -404,7 +404,7 @@ def buildRefPeriodDict(elev_data, plotperiods):
 
 def staticPlot(data, filename, figsize=(12,6),
                title = "Great Salt Lake Historical Elevation",
-               h_lines = None, h_boxes = None, legend = False):
+               years = "full", h_lines = None, h_boxes = None, legend = False):
     '''
     Produces and saves a plot of the elevation data as png and editable svg files.
     Use this by itself for no (or manual) elevation reference lines/boxes.
@@ -420,6 +420,10 @@ def staticPlot(data, filename, figsize=(12,6),
         Dimensions (width, height) for the image. The default is (12,6).
     title : str, optional
         Title for the plot. The default is "Great Salt Lake Historical Elevation".
+    years : str or list of int, optional
+        Range of years to plot. The default is "full", which plots the full
+        downloaded range of dates. Otherwise, specify a [min_year, max_year],
+        for example: [1980, 2026]
     h_lines : dict, optional
         Dictionary containing any horizontal lines to plot. The default is None.
         Dict must take the form {"Line label": [elevation_value, color_hex]} for each line.
@@ -458,6 +462,11 @@ def staticPlot(data, filename, figsize=(12,6),
                 alpha = 0.2,
                 label = label
                 )
+            
+    if years != "full":
+        yr_start = pd.to_datetime(f"{years[0]}-01-01")
+        yr_end = pd.to_datetime(f"{years[1]}-12-31")
+        plt.xlim(yr_start,yr_end)
     
     plt.title("Great Salt Lake Elevation")
     plt.xlabel("Year")
