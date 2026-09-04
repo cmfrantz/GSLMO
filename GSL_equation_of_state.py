@@ -186,4 +186,50 @@ def salinity_to_salinityWtPct(salinity, temp_C):
     salinity_pct = round(salinity/(density_GSL * 10),1)
     
     return salinity_pct
+
+
+def salinityWtPct_to_salinity(salinity_pct, temp_C):
+    '''
+    Convert salinity in weight % to salinity in g/L using an 
+    iterative Newton-Raphson root-finding algorithm.
+    This def / algorithm developed using Gemini Flash 3.6.
+    
+    Parameters
+    ----------
+    salinity_pct : float
+        Salinity measured in weight %
+    temp_C : float
+        Temperature at which salinity was measured in degrees C.
+        
+    Returns
+    -------
+    salinity : float
+        Calculated salinity result in g/L
+    '''
+    if salinity_pct <= 0:
+        return 0.0
+
+    # Initial estimate assuming density ~ 1.0 g/cm3
+    salinity = salinity_pct * 10.0
+    
+    # Newton-Raphson iteration
+    for _ in range(10):
+        density = salinity_to_density(salinity, temp_C)
+        f = (salinity / (density * 10.0)) - salinity_pct
+        
+        if abs(f) < 1e-7:
+            break
+            
+        # Numerical derivative (finite difference)
+        density_step = salinity_to_density(salinity + 0.001, temp_C)
+        df_ds = ((salinity + 0.001) / (density_step * 10.0) - salinity / (density * 10.0)) / 0.001
+        
+        salinity = salinity - f / df_ds
+
+    if salinity < 0 or salinity > lim_max:
+        print(warn_start + 'calculated salinity value' + warn_mid + 'salinity' + warn_end)
+
+    return salinity
+    
+    
     
