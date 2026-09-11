@@ -42,7 +42,9 @@ date_start = "1847-10-18"   # Start date for data grab
                             # Start of reconstructed history for Saltair
                             # is 1847-10-18
 date_end = today            # End date for data grab; default = today
-      
+
+mgmt_range = [4198, 4205]   # Target "healthy" elevation range (in ft asl) for management
+micr_range = [4183, 4195]   # Range of elevations where most microbialites are found (Wilcock et al., 2024)
                       
 ### Data analysis time periods
 # Dictionaries containing:
@@ -622,9 +624,16 @@ if __name__ == '__main__':
     # Run this unless manually specifying the reference lines & boxes
     [h_lines, h_boxes] = buildRefPeriodDict(elev_data, plotperiods)
                 
-    # Static plot of the lake elevation and all selected lines/range boxes
+    # Default static plot of the lake elevation and all selected lines/range boxes
     staticPlot(elev_data, 'GSL_Elevation',
                h_lines = h_lines, h_boxes = h_boxes, legend = True)
+    
+    # Example static plot for 2000-2026 with the management range box
+    '''
+    staticPlot(elev_data, 'GSL_Elevation_mgmt2000', 
+               h_boxes = {"Healthy" : [mgmt_range, "#66c2a4"]},
+               years=[2000,2026])
+    '''
     
     # Bokeh plot of the lake elevation
     buildBokehPlot(elev_data_daily, elev_interp_weekly, HTML_head,
