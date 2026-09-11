@@ -10,6 +10,9 @@ using the equation of state developed by Naftz et al (2011).
 
 The equation of state is valid from 0-270 g/L salinity.
 
+Also converts refractometer % salinity measurements using the emperical
+relationship published in Frantz et al (2023) for GSL surface waters.
+
 References:
     
     Naftz, D. L., Millero, F. J., Jones, B. F., & Green, W. R. (2011). An
@@ -20,6 +23,12 @@ References:
     Mcilwain, H.E. (2023). Density and salinity data to validate an equation
     of state for hypersaline water in Great Salt Lake, Utah, 2021–2022:
     U.S. Geological Survey data release, https://doi.org/10.5066/P96MNH8J
+    
+    Frantz, C. M., Gibby, C., Nilson, R., Stern, C. J., Nguyen, M., Ellsworth,
+    C., Dolan, H., Sihapanya, A., Aeschlimann, J., & Baxter, B. K. (2023).
+    Desiccation of ecosystem-critical microbialites in the shrinking Great
+    Salt Lake, Utah (USA). PLOS Water, (2), e0000100.
+    https://doi.org/10.1371/journal.pwat.0000100
 
 
 Copyright (C) 2026  Carie M. Frantz
@@ -230,6 +239,55 @@ def salinityWtPct_to_salinity(salinity_pct, temp_C):
         print(warn_start + 'calculated salinity value' + warn_mid + 'salinity' + warn_end)
 
     return salinity
+
+
+def refractPct_to_density(salinity_refract):
+    '''
+    Convert salinity % measured with a refractometer to density in g/cm3 using
+    the empirical relationship published in S1 of Frantz et al. (2023)
+
+    Parameters
+    ----------
+    salinity_refract : float
+        Measured refractometer salinity in %.
+
+    Returns
+    -------
+    density : float
+        Calculated salinity in g/cm3.
+
+    '''
     
+    if salinity_refract < 0 or salinity_refract > 24:
+        print('Warning: The input value ' + salinity_refract + '% is outiside the range of 0-24 % for which the empirical relationship in Frantz et al (2023) is valid. Take this calculated value with a grain of salt. Pun intended.')
+        
+    # Equation from Frantz et al. (2023), valid to precision of 0.01 g/cm3
+    density = round((salinity_refract * 0.0077 + 0.9957), 2)
     
+    return density
+
+    
+def refractPct_to_salinity(salinity_refract, temp_C):
+    '''
+    Converts salinity % measured with a refractometer to salinity in g/L using
+    the emperical relationship of Frantz et al. (2023) and the Equatio of State
+    of Naftz (2011)
+
+    Parameters
+    ----------
+    salinity_refract : float
+        Measured refractometer salinity in %.
+    temp_C : float        
+        Temperature at which salinity was measured in degrees C.
+
+    Returns
+    -------
+    salinity : float
+        Calculated salinity in g/L.
+
+    '''
+    density = refractPct_to_density(salinity_refract)
+    salinity = density_to_salinity(density, temp_C)
+    
+    return salinity
     
