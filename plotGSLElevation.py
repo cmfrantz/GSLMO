@@ -406,7 +406,8 @@ def buildRefPeriodDict(elev_data, plotperiods):
 
 def staticPlot(data, filename, figsize=(12,6),
                title = "Great Salt Lake Historical Elevation",
-               years = "full", h_lines = None, h_boxes = None, legend = False):
+               years = "full", h_lines = None, h_boxes = None, legend = False,
+               ylim = 'default'):
     '''
     Produces and saves a plot of the elevation data as png and editable svg files.
     Use this by itself for no (or manual) elevation reference lines/boxes.
@@ -429,12 +430,15 @@ def staticPlot(data, filename, figsize=(12,6),
     h_lines : dict, optional
         Dictionary containing any horizontal lines to plot. The default is None.
         Dict must take the form {"Line label": [elevation_value, color_hex]} for each line.
-    h_boxes: dict, optional
+    h_boxes : dict, optional
         Dictionary containing any range boxes to plot. The default is None.
         Dict must take the form
         {"Box label": [[elevation_min, elevation_max], colorhex]} for each line.
     legend : bool, optional
         Whether to add a legend to the plot. The default is False.
+    ylim : str or list of int, optional
+        Y-axis limits. The default uses default y-scaling (full dataset).
+        Otherwise, specify the limits [min, max], e.g., [4185,4200]
 
     Returns
     -------
@@ -470,10 +474,13 @@ def staticPlot(data, filename, figsize=(12,6),
         yr_end = pd.to_datetime(f"{years[1]}-12-31")
         plt.xlim(yr_start,yr_end)
     
-    plt.title("Great Salt Lake Elevation")
+    plt.title(title)
     plt.xlabel("Year")
     plt.ylabel("Elevation (Feet above sea level)")
     plt.grid(True, linestyle=":", alpha=0.5)
+    
+    if ylim != 'default':
+        plt.ylim(ylim[0], ylim[1])
     
     if legend:
         plt.legend(loc="upper right")
