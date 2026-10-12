@@ -32,7 +32,8 @@ from bokeh.models import ColumnDataSource, Div, HoverTool
 ####################
 # VARIABLES
 ####################
-directory = os.getcwd()     # Directory for saving the page
+directory = "GSL_elev_files"     # Directory for saving the page and plots
+os.makedirs(directory, exist_ok=True)    # Creates folder if it is missing
 
 ### Data Retrieval Variables (for USGS API)
 station_id = "10010000"     # USGS Great Salt Lake at Saltair Boat Harbor, UT
