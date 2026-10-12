@@ -2,6 +2,8 @@
 name: Daily Lake Elevation Update
 
 on:
+  push:
+    branches: [ liveupdatetest ]
   schedule:
     # Runs automatically every day at 7:00 AM MDT (13:00 UTC)
     - cron: '0 13 * * *'
