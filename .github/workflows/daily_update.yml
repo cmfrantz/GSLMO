@@ -1,0 +1,38 @@
+# Created using Gemini Oct 12 2026
+name: Daily Lake Elevation Update
+
+on:
+  schedule:
+    # Runs automatically every day at 7:00 AM MDT (13:00 UTC)
+    - cron: '0 13 * * *'
+  workflow_dispatch: # Allows you to manually trigger it anytime
+
+jobs:
+  update-plot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas matplotlib bokeh
+
+      - name: Execute plotting script
+        run: python plotGSLElevation.py
+
+      - name: Commit and push updated output files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add GSL_elev_files/GSL_Elevation.html GSL_elev_files/GSL_Elevation.png GSL_elev_files/GSL_Elevation.svg
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Automated daily plot update" && git push)
